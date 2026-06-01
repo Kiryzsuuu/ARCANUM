@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Grid Taktis</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    .map-area  { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .map-toolbar { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:8px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+    .layer-toggle { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--ash); padding:4px 8px; border:.5px solid var(--border); border-radius:4px; cursor:pointer; font-family:var(--font); user-select:none; }
+    .layer-toggle.on { color:var(--signal); border-color:var(--cmd); background:var(--deep); }
+    .tool-btn  { width:28px; height:28px; border:.5px solid var(--border); border-radius:4px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:transparent; color:var(--ash); font-size:14px; }
+    .tool-btn:hover, .tool-btn.active { color:var(--signal); background:var(--deep); border-color:var(--cmd); }
+    .tool-sep  { width:.5px; height:20px; background:var(--border); margin:0 4px; }
+    .coord-display { margin-left:auto; font-size:10px; color:var(--signal); background:var(--abyss); border:.5px solid var(--border); border-radius:4px; padding:4px 10px; font-family:var(--font); }
+
+    /* Map body */
+    .map-body  { flex:1; display:flex; overflow:hidden; position:relative; }
+    #leaflet-map { flex:1; background:#040c16; }
+
+    /* Override Leaflet UI to match theme */
+    .leaflet-container { background: #040c16; font-family: var(--font); }
+    .leaflet-control-zoom a { background:var(--bg-panel); color:var(--mist); border-color:var(--border); }
+    .leaflet-control-zoom a:hover { background:var(--deep); color:var(--signal); }
+    .leaflet-popup-content-wrapper { background:var(--bg-panel); color:var(--frost); border:.5px solid var(--border); border-radius:8px; }
+    .leaflet-popup-tip { background:var(--bg-panel); }
+    .leaflet-popup-close-button { color:var(--ash) !important; }
+    .leaflet-control-attribution { background:rgba(6,14,26,.8) !important; color:var(--ash) !important; font-size:8px; }
+    .leaflet-control-attribution a { color:var(--signal) !important; }
+
+    /* Info panel */
+    .info-panel { width:240px; background:var(--bg-panel); border-left:.5px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; flex-shrink:0; }
+    .ip-header  { padding:10px 12px; border-bottom:.5px solid var(--border); font-size:10px; font-weight:bold; color:var(--mist); letter-spacing:.06em; display:flex; align-items:center; justify-content:space-between; }
+    .ip-section { padding:10px 12px; border-bottom:.5px solid var(--border); }
+    .ip-sec-lbl { font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+    .uli { display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer; padding:4px 6px; border-radius:4px; }
+    .uli:hover { background:var(--deep); }
+    .uli-name  { font-size:10px; color:var(--mist); flex:1; }
+    .uli-city  { font-size:9px; color:var(--ash); }
+    .legend-item { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+    .legend-dot  { width:10px; height:10px; border-radius:50%; border:1.5px solid; flex-shrink:0; }
+    .legend-lbl  { font-size:9px; color:var(--ash); }
+
+    /* Status bar */
+    .map-statusbar { background:var(--bg-topbar); border-top:.5px solid var(--border); padding:5px 14px; display:flex; align-items:center; gap:16px; flex-shrink:0; flex-wrap:wrap; }
+    .msb-item { font-size:9px; color:var(--cmd); display:flex; align-items:center; gap:5px; }
+
+    /* Custom unit marker */
+    .unit-marker-icon { display:flex; flex-direction:column; align-items:center; }
+    .unit-pin-div { border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-family:monospace; font-weight:bold; transition:transform .15s; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+    .unit-pin-div:hover { transform:scale(1.2); }
+    .unit-pulse { width:40px; height:40px; border-radius:50%; position:absolute; top:-6px; left:-6px; opacity:.3; animation:ring-pulse 2s ease-out infinite; }
+    @keyframes ring-pulse { 0% { transform:scale(1); opacity:.3; } 100% { transform:scale(2.2); opacity:0; } }
+    .unit-lbl-div { font-size:9px; padding:2px 5px; border-radius:3px; white-space:nowrap; margin-top:2px; font-family:monospace; }
+
+    /* Popup */
+    .map-popup { font-family:var(--font); font-size:11px; color:var(--frost); min-width:180px; }
+    .map-popup .pop-name { font-size:13px; font-weight:bold; margin-bottom:6px; }
+    .map-popup .pop-row  { display:flex; justify-content:space-between; margin-bottom:3px; }
+    .map-popup .pop-key  { color:var(--ash); font-size:9px; text-transform:uppercase; }
+    .map-popup .pop-val  { color:var(--mist); font-size:10px; }
+    .map-popup .pop-dm   { display:block; margin-top:8px; font-size:10px; color:var(--signal); text-align:center; padding:4px 0; border-top:.5px solid var(--border); }
+
+    /* Mobile */
+    @media (max-width:640px) {
+      .info-panel { display:none; }
+      .coord-display { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand"><div class="tb-icon"><i class="ti ti-lock"></i></div><span class="tb-name">ARCANUM</span></div>
+        <div class="tb-sep"></div>
+        <span class="tb-path">GRID // PETA TAKTIS REAL-TIME</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> LIVE</div>
+        <div class="tb-item"><i class="ti ti-clock"></i> <span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2"></i></a>
+        <a href="/grid"      class="nav-btn active" title="Grid"><i class="ti ti-map-pin"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout"    class="nav-btn" title="Logout"><i class="ti ti-logout"></i></a>
+      </nav>
+
+      <div class="map-area">
+        <!-- Toolbar -->
+        <div class="map-toolbar">
+          <div class="tb-group" style="display:flex;gap:4px;">
+            <div class="tool-btn active" id="btn-locate" title="Locate me" onclick="locateMe()"><i class="ti ti-location"></i></div>
+            <div class="tool-btn" id="btn-fit" title="Fit all units" onclick="fitAll()"><i class="ti ti-focus-centered"></i></div>
+            <div class="tool-btn" id="btn-refresh" title="Refresh positions" onclick="refreshPositions()"><i class="ti ti-refresh"></i></div>
+          </div>
+          <div class="tool-sep"></div>
+          <div class="layer-toggle on" id="toggle-operators" onclick="this.classList.toggle('on');toggleLayer('operators')">
+            <i class="ti ti-users" style="font-size:12px;"></i> Operators
+          </div>
+          <div class="layer-toggle on" id="toggle-units" onclick="this.classList.toggle('on');toggleLayer('units')">
+            <i class="ti ti-map-pin" style="font-size:12px;"></i> Units
+          </div>
+          <div class="layer-toggle on" id="toggle-zones" onclick="this.classList.toggle('on');toggleLayer('zones')">
+            <i class="ti ti-vector" style="font-size:12px;"></i> Zones
+          </div>
+          <div class="coord-display" id="coord-display">
+            <i class="ti ti-crosshair" style="font-size:10px;"></i> 0.000, 0.000
+          </div>
+        </div>
+
+        <div class="map-body">
+          <!-- Leaflet Map -->
+          <div id="leaflet-map"></div>
+
+          <!-- Info panel -->
+          <div class="info-panel">
+            <div class="ip-header">
+              <span>LIVE POSITIONS</span>
+              <span class="badge badge-ok" id="online-count">0 online</span>
+            </div>
+            <div class="ip-section">
+              <div class="ip-sec-lbl">Active operators</div>
+              <div id="operator-list"></div>
+            </div>
+            <div class="ip-section">
+              <div class="ip-sec-lbl">Field units</div>
+              <div id="unit-list"></div>
+            </div>
+            <div class="ip-section">
+              <div class="ip-sec-lbl">Legend</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#0C1F38;border-color:#378ADD;"></div><span class="legend-lbl">Command / SA</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#173404;border-color:#639922;"></div><span class="legend-lbl">Operator — online</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#1a0e04;border-color:#EF9F27;"></div><span class="legend-lbl">Unit — monitoring</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#1a0505;border-color:#E24B4A;"></div><span class="legend-lbl">Unknown contact</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#1a0a2a;border-color:#8c1e1e;border-style:dashed;border-radius:0;width:14px;height:8px;"></div><span class="legend-lbl">Restricted zone</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="map-statusbar">
+          <div class="msb-item"><div class="status-dot dot-green" style="width:5px;height:5px;"></div><span id="sb-online">0 operators online</span></div>
+          <div class="msb-item"><div class="status-dot dot-amber" style="width:5px;height:5px;"></div><span id="sb-units">0 field units</span></div>
+          <div class="msb-item ml-auto"><i class="ti ti-refresh" style="font-size:10px;"></i> <span id="sync-time">Syncing...</span></div>
+          <div class="msb-item"><i class="ti ti-satellite" style="font-size:10px;"></i> GPS + IP Geo</div>
+          <div class="msb-item"><i class="ti ti-lock" style="font-size:10px;"></i> Encrypted feed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"><i class="ti ti-messages"></i><span>COMMS</span></a>
+      <a href="/dm"><i class="ti ti-message-2"></i><span>DM</span></a>
+      <a href="/grid" class="active"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+    </nav>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/arcanum.js"></script>
+  <script>
+  // ══════════════════════════════════════════════
+  //  COLOR HELPERS
+  // ══════════════════════════════════════════════
+  const ROLE_COLOR = { SA:'#378ADD', ADMIN:'#378ADD', CMD:'#378ADD', OPS:'#639922', RECON:'#EF9F27', INTEL:'#85B7EB', LOG:'#666' };
+  const ROLE_BG    = { SA:'#0a1628', ADMIN:'#0a1628', CMD:'#0C1F38', OPS:'#173404', RECON:'#1a0e04', INTEL:'#0a1020', LOG:'#1a1a1a' };
+  const ROLE_TEXT  = { SA:'#E6F1FB', ADMIN:'#E6F1FB', CMD:'#85B7EB', OPS:'#C0DD97', RECON:'#FAC775', INTEL:'#B5D4F4', LOG:'#888' };
+
+  function getColor(role) {
+    return ROLE_COLOR[role] || '#639922';
+  }
+  function getBg(role) {
+    return ROLE_BG[role] || '#173404';
+  }
+
+  // ══════════════════════════════════════════════
+  //  MAP INIT
+  // ══════════════════════════════════════════════
+  let map, currentUser;
+  const markers    = {};  // id -> L.Marker
+  const layerGroups = {
+    operators: L.layerGroup(),
+    units:     L.layerGroup(),
+    zones:     L.layerGroup()
+  };
+
+  async function initMap() {
+    currentUser = await initTopbar('GRID TAKTIS');
+
+    // Dark tile — CartoDB Dark Matter
+    const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org">OSM</a> &copy; <a href="https://carto.com">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19
+    });
+
+    map = L.map('leaflet-map', {
+      center: [-2.5, 118.0],
+      zoom: 5,
+      zoomControl: false,
+      layers: [darkTile]
+    });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Add layer groups to map
+    Object.values(layerGroups).forEach(lg => lg.addTo(map));
+
+    // Cursor coordinates
+    map.on('mousemove', e => {
+      document.getElementById('coord-display').innerHTML =
+        `<i class="ti ti-crosshair" style="font-size:10px;"></i> ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+    });
+
+    // Add restricted zones
+    addZones();
+
+    // Load initial data
+    await loadAllPositions();
+    await loadFieldUnits();
+
+    // Socket for realtime updates
+    const socket = io();
+    socket.emit('register', currentUser.id);
+
+    socket.on('positions-init', (positions) => {
+      positions.forEach(p => upsertOperatorMarker(p));
+      updateSidebar();
+    });
+
+    socket.on('operator-position', (pos) => {
+      upsertOperatorMarker(pos);
+      updateSidebar();
+      flashSync();
+    });
+
+    socket.on('operator-offline', ({ id }) => {
+      removeMarker(id);
+      updateSidebar();
+    });
+
+    socket.on('unit-moved', (data) => {
+      upsertUnitMarker(data);
+    });
+
+    // Auto-refresh every 5 min
+    setInterval(loadAllPositions, 5 * 60 * 1000);
+    flashSync();
+  }
+
+  // ══════════════════════════════════════════════
+  //  OPERATOR MARKERS (real IP-based positions)
+  // ══════════════════════════════════════════════
+  const operatorData = {};  // id -> operator info
+
+  async function loadAllPositions() {
+    const positions = await api('/api/positions');
+    positions.forEach(p => upsertOperatorMarker(p));
+    updateSidebar();
+    flashSync();
+  }
+
+  function upsertOperatorMarker(op) {
+    if (!op.lat || !op.lng) return;
+    operatorData[op.id] = op;
+
+    const color  = getColor(op.role);
+    const bg     = getBg(op.role);
+    const txt    = ROLE_TEXT[op.role] || '#C0DD97';
+    const initials = (op.name || op.id).slice(0, 3).toUpperCase();
+    const isMe   = currentUser && op.id === currentUser.id;
+    const size   = isMe ? 36 : 30;
+    const pulse  = ['SA','CMD','ADMIN'].includes(op.role) || isMe;
+
+    const iconHtml = `
+      <div class="unit-marker-icon">
+        <div style="position:relative;">
+          ${pulse ? `<div class="unit-pulse" style="background:${color};"></div>` : ''}
+          <div class="unit-pin-div" style="width:${size}px;height:${size}px;font-size:${size>30?10:9}px;background:${bg};border-color:${color};color:${txt};">
+            ${initials}
+          </div>
+          ${isMe ? '<div style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#22cc44;border:1.5px solid #040c16;"></div>' : ''}
+        </div>
+        <div class="unit-lbl-div" style="color:${color};background:rgba(4,12,22,.85);">${op.name || op.id}</div>
+      </div>`;
+
+    const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [size+40, size+30], iconAnchor: [(size+40)/2, size/2] });
+
+    const popupHtml = `
+      <div class="map-popup">
+        <div class="pop-name" style="color:${color};">${op.name}</div>
+        <div class="pop-row"><span class="pop-key">Role</span><span class="pop-val">${op.role}</span></div>
+        <div class="pop-row"><span class="pop-key">Clearance</span><span class="pop-val">LVL ${op.clearance}</span></div>
+        <div class="pop-row"><span class="pop-key">Location</span><span class="pop-val">${op.city || '—'}, ${op.country || '—'}</span></div>
+        <div class="pop-row"><span class="pop-key">Coords</span><span class="pop-val">${op.lat?.toFixed(4)}, ${op.lng?.toFixed(4)}</span></div>
+        <div class="pop-row"><span class="pop-key">Updated</span><span class="pop-val">${op.updatedAt ? new Date(op.updatedAt).toUTCString().split(' ')[4].slice(0,5) + ' UTC' : '—'}</span></div>
+        ${op.id !== currentUser?.id ? `<a class="pop-dm" href="/dm/${op.id}">Send Direct Message</a>` : ''}
+      </div>`;
+
+    if (markers[op.id]) {
+      markers[op.id].setLatLng([op.lat, op.lng]);
+      markers[op.id].setIcon(icon);
+      markers[op.id].getPopup()?.setContent(popupHtml);
+    } else {
+      const m = L.marker([op.lat, op.lng], { icon })
+        .bindPopup(popupHtml, { maxWidth: 240 });
+      layerGroups.operators.addLayer(m);
+      markers[op.id] = m;
+    }
+  }
+
+  function removeMarker(id) {
+    if (markers[id]) {
+      layerGroups.operators.removeLayer(markers[id]);
+      delete markers[id];
+      delete operatorData[id];
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  FIELD UNIT MARKERS (from Unit collection)
+  // ══════════════════════════════════════════════
+  const unitData = {};
+
+  async function loadFieldUnits() {
+    const units = await api('/api/units');
+    units.forEach(u => upsertUnitMarker(u));
+    updateSidebar();
+  }
+
+  function upsertUnitMarker(u) {
+    if (!u.lat || !u.lng) return;
+    unitData[u.id || u.unitId] = u;
+
+    const statusColor = { nominal:'#639922', monitoring:'#EF9F27', threat:'#E24B4A' }[u.status] || '#639922';
+    const statusBg    = { nominal:'#173404', monitoring:'#1a0e04', threat:'#1a0505' }[u.status] || '#173404';
+    const id = (u.id || u.unitId || '').slice(0, 3);
+    const icon = L.divIcon({
+      html: `<div class="unit-marker-icon">
+               <div class="unit-pin-div" style="width:26px;height:26px;font-size:8px;background:${statusBg};border-color:${statusColor};color:${statusColor};">
+                 ${u.status === 'threat' ? '!' : id}
+               </div>
+               <div class="unit-lbl-div" style="color:${statusColor};background:rgba(4,12,22,.85);">${u.name}</div>
+             </div>`,
+      className: '', iconSize: [60, 40], iconAnchor: [30, 13]
+    });
+
+    const popupHtml = `
+      <div class="map-popup">
+        <div class="pop-name" style="color:${statusColor};">${u.name}</div>
+        <div class="pop-row"><span class="pop-key">Role</span><span class="pop-val">${u.role}</span></div>
+        <div class="pop-row"><span class="pop-key">Grid</span><span class="pop-val">${u.grid || '—'}</span></div>
+        <div class="pop-row"><span class="pop-key">Status</span><span class="pop-val" style="color:${statusColor};">${(u.status||'').toUpperCase()}</span></div>
+        <div class="pop-row"><span class="pop-key">Coords</span><span class="pop-val">${Number(u.lat).toFixed(4)}, ${Number(u.lng).toFixed(4)}</span></div>
+      </div>`;
+
+    const uid = u.id || u.unitId;
+    if (markers['unit_' + uid]) {
+      markers['unit_' + uid].setLatLng([u.lat, u.lng]);
+      markers['unit_' + uid].setIcon(icon);
+    } else {
+      const m = L.marker([u.lat, u.lng], { icon }).bindPopup(popupHtml, { maxWidth: 220 });
+      layerGroups.units.addLayer(m);
+      markers['unit_' + uid] = m;
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  ZONES
+  // ══════════════════════════════════════════════
+  function addZones() {
+    // Jakarta restricted zone example
+    const zone1 = L.rectangle([[-6.15, 106.78], [-6.25, 106.86]], {
+      color: '#E24B4A', weight: 1, dashArray: '4,6',
+      fillColor: '#E24B4A', fillOpacity: 0.04
+    }).bindTooltip('ZONA TERBATAS', { permanent: true, className: 'zone-tooltip', direction: 'center' });
+
+    // Command zone
+    const zone2 = L.rectangle([[-6.10, 106.75], [-6.18, 106.82]], {
+      color: '#378ADD', weight: 1, dashArray: '4,6',
+      fillColor: '#378ADD', fillOpacity: 0.04
+    }).bindTooltip('ZONA COMMAND', { permanent: true, className: 'zone-tooltip', direction: 'center' });
+
+    layerGroups.zones.addLayer(zone1);
+    layerGroups.zones.addLayer(zone2);
+  }
+
+  // ══════════════════════════════════════════════
+  //  CONTROLS
+  // ══════════════════════════════════════════════
+  function toggleLayer(name) {
+    const lg = layerGroups[name];
+    if (map.hasLayer(lg)) { map.removeLayer(lg); }
+    else { lg.addTo(map); }
+  }
+
+  function locateMe() {
+    const me = operatorData[currentUser?.id];
+    if (me && me.lat) {
+      map.flyTo([me.lat, me.lng], 12, { duration: 1.5 });
+    } else {
+      map.flyTo([-6.200, 106.816], 10, { duration: 1.5 });
+    }
+  }
+
+  function fitAll() {
+    const allLatLngs = Object.values(operatorData)
+      .filter(o => o.lat)
+      .map(o => [o.lat, o.lng]);
+    if (allLatLngs.length > 0) {
+      map.fitBounds(allLatLngs, { padding: [50, 50], maxZoom: 10 });
+    }
+  }
+
+  function refreshPositions() {
+    const btn = document.getElementById('btn-refresh');
+    btn.style.color = 'var(--signal)';
+    loadAllPositions().then(() => { setTimeout(() => { btn.style.color = ''; }, 1000); });
+  }
+
+  // ══════════════════════════════════════════════
+  //  SIDEBAR UPDATE
+  // ══════════════════════════════════════════════
+  function updateSidebar() {
+    const ops   = Object.values(operatorData);
+    const units = Object.values(unitData);
+
+    document.getElementById('online-count').textContent = ops.length + ' online';
+    document.getElementById('sb-online').textContent    = ops.length + ' operators online';
+    document.getElementById('sb-units').textContent     = units.length + ' field units';
+
+    // Operators list
+    const opList = document.getElementById('operator-list');
+    opList.innerHTML = ops.map(op => {
+      const color = getColor(op.role);
+      const isMe  = currentUser && op.id === currentUser.id;
+      return `
+        <div class="uli" onclick="panTo(${op.lat},${op.lng},14)">
+          <div class="status-dot" style="background:${color};width:6px;height:6px;flex-shrink:0;"></div>
+          <span class="uli-name">${op.name}${isMe ? ' <small style="color:var(--signal);">(you)</small>' : ''}</span>
+          <span class="uli-city">${op.city || '—'}</span>
+        </div>`;
+    }).join('') || '<div style="font-size:10px;color:var(--ash);padding:4px 0;">No operators online</div>';
+
+    // Units list
+    const unitList = document.getElementById('unit-list');
+    unitList.innerHTML = units.map(u => {
+      const c = { nominal:'#639922', monitoring:'#EF9F27', threat:'#E24B4A' }[u.status] || '#639922';
+      return `
+        <div class="uli" onclick="panTo(${u.lat},${u.lng},12)">
+          <div class="status-dot" style="background:${c};width:6px;height:6px;flex-shrink:0;"></div>
+          <span class="uli-name">${u.name}</span>
+          ${statusBadge(u.status === 'threat' ? 'danger' : u.status === 'monitoring' ? 'alert' : 'nominal')}
+        </div>`;
+    }).join('') || '<div style="font-size:10px;color:var(--ash);padding:4px 0;">No units</div>';
+  }
+
+  function panTo(lat, lng, zoom) {
+    map.flyTo([lat, lng], zoom, { duration: 1 });
+  }
+
+  function flashSync() {
+    document.getElementById('sync-time').textContent = 'Last sync: ' + new Date().toUTCString().split(' ')[4] + ' UTC';
+  }
+
+  // Zone tooltip style
+  const zoneStyle = document.createElement('style');
+  zoneStyle.textContent = `.zone-tooltip { background:rgba(4,12,22,.9); border:.5px solid var(--border); color:var(--mist); font-family:monospace; font-size:9px; border-radius:3px; padding:2px 6px; box-shadow:none; letter-spacing:.06em; }
+  .zone-tooltip::before { display:none; }`;
+  document.head.appendChild(zoneStyle);
+
+  initMap();
+  </script>
+</body>
+</html>

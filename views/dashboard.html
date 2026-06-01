@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Dashboard</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .page-header { background: var(--bg-topbar); border-bottom: 0.5px solid var(--border); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+    .ph-title { font-size: 14px; font-weight: bold; color: var(--frost); letter-spacing: 0.06em; }
+    .ph-sub   { font-size: 10px; color: var(--signal); margin-top: 2px; }
+    .content  { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+    .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .mid-row  { display: grid; grid-template-columns: 1fr 280px; gap: 12px; flex: 1; min-height: 0; }
+    .ch-list  { display: flex; flex-direction: column; }
+    .ch-item  { padding: 10px 12px; border-bottom: 0.5px solid var(--abyss); display: flex; align-items: center; gap: 10px; cursor: pointer; text-decoration: none; }
+    .ch-item:hover { background: #07152a; }
+    .ch-item.unread { border-left: 2px solid var(--signal); }
+    .ch-info  { flex: 1; min-width: 0; }
+    .ch-name  { font-size: 12px; color: var(--frost); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ch-last  { font-size: 10px; color: var(--ash); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .ch-meta  { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+    .ch-count { font-size: 9px; background: var(--cmd); color: var(--mist); border-radius: 99px; padding: 1px 6px; }
+    .map-mini { flex: 1; background: var(--abyss); position: relative; overflow: hidden; min-height: 120px; }
+    .map-grid-bg { position: absolute; inset: 0; opacity: 0.15; width: 100%; height: 100%; }
+    .unit-dot { position: absolute; transform: translate(-50%,-50%); }
+    .unit-circle { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; }
+    .unit-lbl { font-size: 8px; text-align: center; margin-top: 2px; white-space: nowrap; }
+    .sr-item { padding: 9px 12px; border-bottom: 0.5px solid var(--abyss); display: flex; gap: 10px; }
+    .sr-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .sr-title { font-size: 11px; color: var(--frost); }
+    .sr-meta  { font-size: 9px; color: var(--ash); margin-top: 2px; }
+    .panel-col { display: flex; flex-direction: column; gap: 12px; }
+    /* Modal */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:999; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modal { background:var(--bg-panel); border:.5px solid var(--border); border-radius:8px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+    .modal-header { padding:14px 16px; border-bottom:.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .modal-title { font-size:13px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .modal-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
+    .modal-footer { padding:12px 16px; border-top:.5px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+    .form-group { display:flex; flex-direction:column; gap:5px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    select.field-select { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); height:38px; color:var(--frost); font-family:var(--font); font-size:12px; padding:0 10px; outline:none; width:100%; }
+    textarea.field-textarea { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); color:var(--frost); font-family:var(--font); font-size:12px; padding:10px 12px; outline:none; width:100%; resize:vertical; min-height:80px; }
+    textarea.field-textarea:focus { border-color:var(--signal); }
+    .toast { position:fixed; bottom:70px; right:20px; background:var(--deep); border:.5px solid var(--cmd); border-radius:6px; padding:10px 16px; font-size:11px; color:var(--frost); z-index:2000; display:none; }
+    @media (max-width:640px) { .form-row { grid-template-columns:1fr !important; } .content { padding:10px; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand">
+          <div class="tb-icon"><i class="ti ti-lock" aria-hidden="true"></i></div>
+          <span class="tb-name">ARCANUM</span>
+        </div>
+        <div class="tb-sep"></div>
+        <span class="tb-path" id="breadcrumb">COMMAND CENTER</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> ENC: ACTIVE</div>
+        <div class="tb-item"><i class="ti ti-clock" aria-hidden="true"></i> <span id="utc-clock"></span></div>
+        <div class="tb-item"><i class="ti ti-bell" aria-hidden="true"></i></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn active" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages" aria-hidden="true"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin" aria-hidden="true"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report" aria-hidden="true"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users" aria-hidden="true"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout"    class="nav-btn" title="Logout"><i class="ti ti-logout" aria-hidden="true"></i></a>
+      </nav>
+
+      <div class="main">
+        <div class="page-header">
+          <div>
+            <div class="ph-title">COMMAND DASHBOARD</div>
+            <div class="ph-sub">// OPERATION STATUS — ALL UNITS REPORTING</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost btn-sm" onclick="openNewSitrep()"><i class="ti ti-file-report" aria-hidden="true"></i> New sitrep</button>
+            <button class="btn btn-primary btn-sm" onclick="location.href='/channels'"><i class="ti ti-broadcast" aria-hidden="true"></i> Broadcast</button>
+          </div>
+        </div>
+
+        <div class="content">
+          <!-- Admin quick bar — only shown for SA/ADMIN/CMD clearance 3+ -->
+          <div id="admin-bar" style="display:none; background:var(--bg-panel); border:.5px solid var(--border); border-radius:6px; padding:10px 14px; display:none; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:9px;color:var(--cmd);letter-spacing:.08em;text-transform:uppercase;flex-shrink:0;"><i class="ti ti-shield-lock" style="font-size:12px;"></i> ADMIN PANEL</span>
+            <div style="width:.5px;height:16px;background:var(--border);flex-shrink:0;"></div>
+            <a href="/operators" class="btn btn-ghost btn-sm"><i class="ti ti-users"></i> Manage Operators</a>
+            <button class="btn btn-ghost btn-sm" onclick="openQuickUserModal()"><i class="ti ti-user-plus"></i> Buat Akun Baru</button>
+            <a href="/operators" class="btn btn-ghost btn-sm"><i class="ti ti-shield"></i> Ganti Role / Clearance</a>
+            <div class="ml-auto" style="font-size:10px;color:var(--ash);" id="admin-role-badge"></div>
+          </div>
+
+          <!-- Stat cards -->
+          <div class="stat-row" id="stat-row">
+            <div class="stat-card"><div class="stat-num text-ops" id="s-operators">--</div><div class="stat-label">Operators registered</div><div class="stat-delta">All clearances</div></div>
+            <div class="stat-card"><div class="stat-num" id="s-channels">--</div><div class="stat-label">Active channels</div><div class="stat-delta">Encryption active</div></div>
+            <div class="stat-card"><div class="stat-num text-siaga" id="s-sitrep">--</div><div class="stat-label">Pending sitrep</div><div class="stat-delta">Awaiting review</div></div>
+            <div class="stat-card"><div class="stat-num" id="s-uptime">--<span style="font-size:13px;color:var(--signal);">%</span></div><div class="stat-label">Uptime</div><div class="stat-delta">All nodes nominal</div></div>
+          </div>
+
+          <!-- Mid row -->
+          <div class="mid-row" style="flex:1; min-height: 300px;">
+            <!-- Channel list -->
+            <div class="panel flex-col" style="overflow:hidden;">
+              <div class="panel-header">
+                <span class="panel-title"><i class="ti ti-messages" aria-hidden="true"></i> ACTIVE CHANNELS</span>
+                <a href="/channels" class="panel-action">View all</a>
+              </div>
+              <div class="ch-list" id="channel-list">
+                <div style="padding: 12px; color: var(--ash); font-size: 11px;">Loading channels...</div>
+              </div>
+            </div>
+
+            <div class="panel-col">
+              <!-- Mini map -->
+              <div class="panel flex-col" style="flex: 1;">
+                <div class="panel-header">
+                  <span class="panel-title"><i class="ti ti-map" aria-hidden="true"></i> GRID OVERVIEW</span>
+                  <a href="/grid" class="panel-action">Full map</a>
+                </div>
+                <div class="map-mini" id="map-mini">
+                  <svg class="map-grid-bg" xmlns="http://www.w3.org/2000/svg">
+                    <defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#378ADD" stroke-width="0.4"/></pattern></defs>
+                    <rect width="100%" height="100%" fill="url(#g)"/>
+                  </svg>
+                  <div id="unit-dots"></div>
+                </div>
+              </div>
+
+              <!-- Sitrep mini -->
+              <div class="panel" style="flex-shrink:0;">
+                <div class="panel-header">
+                  <span class="panel-title"><i class="ti ti-file-report" aria-hidden="true"></i> LATEST SITREP</span>
+                  <a href="/sitrep" class="panel-action">View all</a>
+                </div>
+                <div id="sitrep-mini">
+                  <div style="padding:12px;color:var(--ash);font-size:11px;">Loading...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard" title="Dashboard" class="active"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"  title="Channels"><i class="ti ti-messages"></i><span>COMMS</span></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+      <a href="/grid"      title="Grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"    title="Sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+      <a href="/operators" title="Operators"><i class="ti ti-users"></i><span>OPS</span></a>
+    </nav>
+  </div>
+
+  <!-- New Sitrep Modal -->
+  <div class="modal-overlay" id="sitrep-modal" style="display:none;" onclick="if(event.target.id==='sitrep-modal')document.getElementById('sitrep-modal').style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">NEW SITUATION REPORT</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sitrep-modal').style.display='none'"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-heading" aria-hidden="true"></i> Report Title</div>
+          <div class="input-box"><input type="text" id="ns-title" placeholder="Brief situation description" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-users" aria-hidden="true"></i> Unit</div>
+            <div class="input-box"><input type="text" id="ns-unit" placeholder="e.g. ALPHA, FOXTROT" autocomplete="off"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-map-pin" aria-hidden="true"></i> Grid Reference</div>
+            <div class="input-box"><input type="text" id="ns-grid" placeholder="QR-XXXX" autocomplete="off"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-alert-circle" aria-hidden="true"></i> Priority</div>
+          <select class="field-select" id="ns-priority">
+            <option value="info">INFO — Routine</option>
+            <option value="low">LOW — Monitor</option>
+            <option value="medium" selected>MEDIUM — Attention required</option>
+            <option value="high">HIGH — Immediate action</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-file-text" aria-hidden="true"></i> Report Body</div>
+          <textarea class="field-textarea" id="ns-body" placeholder="Detailed situation description..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('sitrep-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-primary" id="ns-save-btn" onclick="submitNewSitrep()">
+          <i class="ti ti-send" aria-hidden="true"></i> Submit
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Quick Create User Modal (admin only) -->
+  <div class="modal-overlay" id="quick-user-modal" style="display:none;" onclick="if(event.target.id==='quick-user-modal')this.style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;">
+      <div class="modal-header">
+        <span class="modal-title"><i class="ti ti-user-plus" style="margin-right:6px;"></i>BUAT AKUN OPERATOR</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('quick-user-modal').style.display='none'"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-id-badge"></i> Operator ID</div>
+            <div class="input-box"><input type="text" id="qu-id" placeholder="OPS-XXX" autocomplete="off" spellcheck="false" style="text-transform:uppercase;"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-user"></i> Nama / Callsign</div>
+            <div class="input-box"><input type="text" id="qu-name" placeholder="CALLSIGN" autocomplete="off" style="text-transform:uppercase;"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-mail"></i> Email <span style="color:var(--ash);font-size:9px;">(opsional)</span></div>
+          <div class="input-box"><input type="email" id="qu-email" placeholder="email@domain.com" autocomplete="off"></div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-lock"></i> Passphrase Awal</div>
+          <div class="input-box"><input type="text" id="qu-pass" placeholder="Min. 6 karakter" autocomplete="off"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-shield"></i> Role</div>
+            <select class="field-select" id="qu-role">
+              <option value="OPS">OPS — Operator</option>
+              <option value="RECON">RECON</option>
+              <option value="INTEL">INTEL</option>
+              <option value="LOG">LOG — Logistics</option>
+              <option value="CMD">CMD — Command</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-hierarchy"></i> Clearance</div>
+            <select class="field-select" id="qu-clearance">
+              <option value="1">LVL 1 — Restricted</option>
+              <option value="2" selected>LVL 2 — Operator</option>
+              <option value="3">LVL 3 — Command</option>
+            </select>
+          </div>
+        </div>
+        <div id="qu-err" style="display:none;background:#1a0505;border:.5px solid #A32D2D;border-radius:4px;padding:8px 12px;font-size:11px;color:var(--threat);"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('quick-user-modal').style.display='none'">Batal</button>
+        <button class="btn btn-primary" id="qu-save"><i class="ti ti-user-plus"></i> Buat Akun</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/arcanum.js"></script>
+  <script>
+    const STATUS_COLORS = { nominal:'#639922', monitoring:'#EF9F27', threat:'#E24B4A', CMD:'#378ADD' };
+
+    async function init() {
+      const user = await initTopbar('COMMAND CENTER');
+      // Show admin bar for SA, ADMIN, or clearance >= 3
+      if (['SA','ADMIN'].includes(user.role) || user.clearance >= 3) {
+        const bar = document.getElementById('admin-bar');
+        bar.style.display = 'flex';
+        document.getElementById('admin-role-badge').textContent = user.role + ' · LVL ' + user.clearance;
+      }
+      loadDashboard();
+    }
+
+    async function loadDashboard() {
+      const [stats, channels, sitreps, units] = await Promise.all([
+        api('/api/stats'),
+        api('/api/channels'),
+        api('/api/sitreps'),
+        api('/api/units')
+      ]);
+
+      document.getElementById('s-operators').textContent = stats.operatorsOnline;
+      document.getElementById('s-channels').textContent = stats.activeChannels;
+      document.getElementById('s-sitrep').textContent = String(stats.pendingSitrep).padStart(2,'0');
+      document.getElementById('s-uptime').innerHTML = stats.uptime + '<span style="font-size:13px;color:var(--signal);">%</span>';
+
+      // Channels
+      const cl = document.getElementById('channel-list');
+      cl.innerHTML = channels.slice(0, 6).map(ch => `
+        <a href="/channels/${ch.id}" class="ch-item${ch.unread ? ' unread' : ''}">
+          <span class="status-dot ${ch.status==='active'?'dot-green':ch.status==='alert'?'dot-amber':'dot-gray'}"></span>
+          <div class="ch-info">
+            <div class="ch-name">${ch.name}</div>
+            <div class="ch-last">Click to open channel</div>
+          </div>
+          <div class="ch-meta">
+            ${ch.unread ? `<span class="ch-count">${ch.unread}</span>` : ''}
+          </div>
+        </a>
+      `).join('');
+
+      // Unit dots on mini map
+      const COLOR_MAP = { CMD:'#378ADD', nominal:'#639922', monitoring:'#EF9F27', threat:'#E24B4A' };
+      const BG_MAP = { CMD:'#0C1F38', nominal:'#173404', monitoring:'#1a0e04', threat:'#1a0505' };
+      const dots = document.getElementById('unit-dots');
+      dots.innerHTML = units.slice(0,6).map(u => {
+        const c = u.role==='CMD' ? 'CMD' : u.status;
+        const bc = COLOR_MAP[c] || '#378ADD';
+        const bg = BG_MAP[c] || '#0C1F38';
+        return `<div class="unit-dot" style="left:${u.lng||42}%;top:${u.lat||38}%;">
+          <div class="unit-circle" style="background:${bg};border-color:${bc};color:${bc};">${u.id||u.unitId}</div>
+          <div class="unit-lbl" style="color:${bc};">${u.name.split('-')[0]}</div>
+        </div>`;
+      }).join('');
+
+      // Sitrep mini
+      const sm = document.getElementById('sitrep-mini');
+      const pending = sitreps.filter(s => s.status==='pending').slice(0,2);
+      sm.innerHTML = pending.length ? pending.map(s => `
+        <div class="sr-item">
+          <i class="ti ti-alert-triangle sr-icon" style="color:var(--siaga);" aria-hidden="true"></i>
+          <div>
+            <div class="sr-title">${s.title}</div>
+            <div class="sr-meta">${s.unit} · ${s.time} UTC</div>
+          </div>
+        </div>
+      `).join('') : '<div style="padding:12px;font-size:11px;color:var(--ops);"><i class="ti ti-check" aria-hidden="true"></i> All sitreps reviewed</div>';
+    }
+
+    function openNewSitrep() {
+      ['ns-title','ns-unit','ns-grid','ns-body'].forEach(id => document.getElementById(id).value='');
+      document.getElementById('ns-priority').value='medium';
+      document.getElementById('sitrep-modal').style.display='flex';
+    }
+
+    async function submitNewSitrep() {
+      const title = document.getElementById('ns-title').value.trim();
+      const unit  = document.getElementById('ns-unit').value.trim();
+      if (!title||!unit) { showToast('Title and Unit are required',true); return; }
+      const btn = document.getElementById('ns-save-btn');
+      btn.disabled=true;
+      btn.innerHTML='<i class="ti ti-loader" aria-hidden="true"></i> Submitting...';
+      try {
+        const r = await api('/api/sitreps', {
+          method:'POST',
+          body: JSON.stringify({
+            title, unit: unit.toUpperCase(),
+            grid: document.getElementById('ns-grid').value.trim().toUpperCase(),
+            priority: document.getElementById('ns-priority').value,
+            body: document.getElementById('ns-body').value.trim()
+          })
+        });
+        if (r.error) { showToast(r.error,true); return; }
+        document.getElementById('sitrep-modal').style.display='none';
+        showToast('Sitrep submitted');
+        loadDashboard();
+      } catch { showToast('Error — try again',true); }
+      finally { btn.disabled=false; btn.innerHTML='<i class="ti ti-send" aria-hidden="true"></i> Submit'; }
+    }
+
+    function showToast(msg, isError=false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast' + (isError?' error':'');
+      t.style.display='block';
+      setTimeout(()=>{ t.style.display='none'; },3000);
+    }
+
+    // Quick create user modal
+    function openQuickUserModal() {
+      document.getElementById('quick-user-modal').style.display = 'flex';
+    }
+
+    document.getElementById('qu-save').addEventListener('click', async () => {
+      const id   = document.getElementById('qu-id').value.trim().toUpperCase();
+      const name = document.getElementById('qu-name').value.trim().toUpperCase();
+      const pass = document.getElementById('qu-pass').value;
+      const role = document.getElementById('qu-role').value;
+      const clr  = document.getElementById('qu-clearance').value;
+      const email= document.getElementById('qu-email').value.trim().toLowerCase();
+
+      if (!id || !name || pass.length < 6) {
+        document.getElementById('qu-err').textContent = 'ID, Nama, dan Passphrase (min. 6 karakter) wajib diisi';
+        document.getElementById('qu-err').style.display = 'block'; return;
+      }
+      document.getElementById('qu-err').style.display = 'none';
+      document.getElementById('qu-save').disabled = true;
+
+      const r = await api('/api/operators', {
+        method: 'POST',
+        body: JSON.stringify({ operatorId: id, name, passphrase: pass, role, clearance: Number(clr), email })
+      });
+      document.getElementById('qu-save').disabled = false;
+      if (r.error) { document.getElementById('qu-err').textContent = r.error; document.getElementById('qu-err').style.display='block'; return; }
+
+      document.getElementById('quick-user-modal').style.display = 'none';
+      showToast('Akun ' + id + ' berhasil dibuat');
+      loadDashboard();
+    });
+
+    init();
+  </script>
+</body>
+</html>

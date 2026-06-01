@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Register</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:16px; background:var(--bg-app); }
+    .reg-card { width:100%; max-width:440px; background:var(--bg-panel); border:.5px solid var(--border); border-radius:10px; overflow:hidden; }
+    .reg-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:18px 20px; display:flex; align-items:center; gap:12px; }
+    .reg-icon { width:38px; height:38px; background:var(--cmd); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--frost); flex-shrink:0; }
+    .reg-title { font-size:14px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .reg-sub   { font-size:10px; color:var(--signal); margin-top:2px; }
+    .reg-body  { padding:22px 20px; display:flex; flex-direction:column; gap:14px; }
+    .form-group { display:flex; flex-direction:column; gap:5px; }
+    .code-row  { display:flex; gap:8px; }
+    .code-row .input-box { flex:1; }
+    .code-status { padding:8px 12px; border-radius:5px; font-size:11px; display:none; align-items:center; gap:8px; }
+    .code-status.ok  { background:#0d2210; color:var(--ops); border:.5px solid #3B6D11; display:flex; }
+    .code-status.err { background:#1a0505; color:var(--threat); border:.5px solid #A32D2D; display:flex; }
+    .role-preview { background:var(--deep); border:.5px solid var(--border); border-radius:5px; padding:10px 12px; display:none; flex-direction:column; gap:6px; }
+    .role-preview.show { display:flex; }
+    .rp-row { display:flex; justify-content:space-between; }
+    .rp-key  { font-size:9px; color:var(--ash); text-transform:uppercase; letter-spacing:.06em; }
+    .rp-val  { font-size:11px; color:var(--mist); font-weight:bold; }
+    .reg-footer { padding:14px 20px; border-top:.5px solid var(--border); }
+    .reg-login  { text-align:center; margin-top:12px; font-size:10px; color:var(--ash); }
+    .err-banner { background:#1a0505; border:.5px solid #A32D2D; border-radius:5px; padding:9px 12px; font-size:11px; color:var(--threat); display:flex; align-items:center; gap:8px; }
+  </style>
+  <script>
+    // Apply saved theme immediately
+    (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('arcanum-theme')||'navy'); })();
+  </script>
+</head>
+<body>
+  <div class="reg-card">
+    <div class="reg-header">
+      <div class="reg-icon"><i class="ti ti-user-plus"></i></div>
+      <div>
+        <div class="reg-title">DAFTAR OPERATOR</div>
+        <div class="reg-sub">// GUNAKAN KODE UNDANGAN UNTUK MENDAFTAR</div>
+      </div>
+    </div>
+
+    <div class="reg-body">
+      <!-- Error banner -->
+      <div id="err-banner" class="err-banner" style="display:none;">
+        <i class="ti ti-alert-triangle"></i>
+        <span id="err-msg">Terjadi kesalahan</span>
+      </div>
+
+      <!-- Step 1: Kode undangan -->
+      <div class="form-group">
+        <div class="field-label"><i class="ti ti-ticket"></i> Kode Undangan</div>
+        <div class="code-row">
+          <div class="input-box">
+            <i class="ti ti-key icon"></i>
+            <input type="text" id="inv-code" placeholder="XXXX-XXXX" autocomplete="off" spellcheck="false"
+              oninput="this.value=this.value.toUpperCase()" maxlength="9">
+          </div>
+          <button class="btn btn-secondary" onclick="checkCode()" id="check-btn">Verifikasi</button>
+        </div>
+        <div class="code-status" id="code-status"></div>
+      </div>
+
+      <!-- Role preview (shown after code verified) -->
+      <div class="role-preview" id="role-preview">
+        <div style="font-size:9px;color:var(--signal);letter-spacing:.08em;margin-bottom:2px;">AKUN YANG AKAN DIBUAT</div>
+        <div class="rp-row"><span class="rp-key">Role</span><span class="rp-val" id="rp-role">—</span></div>
+        <div class="rp-row"><span class="rp-key">Clearance</span><span class="rp-val" id="rp-clr">—</span></div>
+        <div class="rp-row" id="rp-note-row" style="display:none;"><span class="rp-key">Catatan</span><span class="rp-val" id="rp-note">—</span></div>
+      </div>
+
+      <form action="/register" method="POST" id="reg-form">
+        <input type="hidden" name="code" id="f-code">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-id-badge"></i> Operator ID <span style="color:var(--ash);font-size:9px;">(contoh: OPS-XXX)</span></div>
+            <div class="input-box">
+              <i class="ti ti-user icon"></i>
+              <input type="text" name="operatorId" id="f-opid" placeholder="OPS-XXX" required autocomplete="off" spellcheck="false"
+                oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-user"></i> Nama / Callsign</div>
+            <div class="input-box">
+              <i class="ti ti-badge icon"></i>
+              <input type="text" name="name" placeholder="CALLSIGN" required autocomplete="off"
+                oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-lock"></i> Passphrase</div>
+            <div class="input-box">
+              <i class="ti ti-lock icon"></i>
+              <input type="password" name="passphrase" id="f-pass" placeholder="Min. 6 karakter" required minlength="6">
+              <i class="ti ti-eye icon muted" style="cursor:pointer;" id="eye-toggle"></i>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="reg-footer">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;" id="reg-btn"
+        onclick="submitReg()" disabled>
+        <i class="ti ti-arrow-right"></i> BUAT AKUN
+      </button>
+      <div class="reg-login">Sudah punya akun? <a href="/" style="color:var(--signal);">Login</a></div>
+    </div>
+  </div>
+
+  <script>
+    const ERRORS = {
+      missing:      'Semua field wajib diisi',
+      invalid_code: 'Kode undangan tidak valid',
+      used:         'Kode undangan sudah digunakan',
+      expired:      'Kode undangan sudah expired',
+      id_taken:     'Operator ID sudah digunakan, pilih ID lain',
+      error:        'Terjadi kesalahan, coba lagi'
+    };
+
+    // Show error from URL param
+    const params = new URLSearchParams(location.search);
+    if (params.get('error')) {
+      const eb = document.getElementById('err-banner');
+      document.getElementById('err-msg').textContent = ERRORS[params.get('error')] || 'Terjadi kesalahan';
+      eb.style.display = 'flex';
+    }
+    // Restore code from URL
+    if (params.get('code')) {
+      document.getElementById('inv-code').value = params.get('code');
+      checkCode();
+    }
+
+    document.getElementById('eye-toggle').onclick = () => {
+      const inp = document.getElementById('f-pass');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    };
+
+    async function checkCode() {
+      const code = document.getElementById('inv-code').value.trim();
+      if (!code) return;
+      const btn    = document.getElementById('check-btn');
+      const status = document.getElementById('code-status');
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const r = await fetch('/api/invite/' + encodeURIComponent(code));
+        const d = await r.json();
+        if (d.valid) {
+          status.className = 'code-status ok';
+          status.innerHTML = '<i class="ti ti-circle-check"></i> Kode valid — role & clearance terkonfirmasi';
+          status.style.display = 'flex';
+          document.getElementById('rp-role').textContent = d.role;
+          document.getElementById('rp-clr').textContent  = 'LVL ' + d.clearance;
+          if (d.note) {
+            document.getElementById('rp-note').textContent = d.note;
+            document.getElementById('rp-note-row').style.display = 'flex';
+          }
+          document.getElementById('role-preview').classList.add('show');
+          document.getElementById('f-code').value = code;
+          document.getElementById('reg-btn').disabled = false;
+        } else {
+          showCodeErr(d.error || 'Kode tidak valid');
+        }
+      } catch {
+        showCodeErr('Gagal verifikasi, coba lagi');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Verifikasi';
+    }
+
+    function showCodeErr(msg) {
+      const status = document.getElementById('code-status');
+      status.className = 'code-status err';
+      status.innerHTML = `<i class="ti ti-alert-circle"></i> ${msg}`;
+      status.style.display = 'flex';
+      document.getElementById('role-preview').classList.remove('show');
+      document.getElementById('reg-btn').disabled = true;
+    }
+
+    function submitReg() {
+      if (!document.getElementById('f-code').value) { alert('Verifikasi kode terlebih dahulu'); return; }
+      document.getElementById('reg-form').submit();
+    }
+
+    // Allow Enter on code input
+    document.getElementById('inv-code').onkeydown = e => { if (e.key === 'Enter') checkCode(); };
+  </script>
+</body>
+</html>

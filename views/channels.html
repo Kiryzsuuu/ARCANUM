@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Channels</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .ch-sidebar { width: 200px; background: var(--bg-panel); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .sb-search { margin: 10px; background: var(--bg-app); border: 0.5px solid var(--border); border-radius: 4px; height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+    .sb-search input { background: transparent; border: none; outline: none; color: var(--frost); font-family: var(--font); font-size: 11px; flex: 1; }
+    .sb-section-lbl { font-size: 9px; color: var(--cmd); letter-spacing: 0.1em; text-transform: uppercase; padding: 6px 10px 4px; }
+    .ch-nav-item { padding: 8px 10px; border-bottom: 0.5px solid var(--abyss); cursor: pointer; display: flex; flex-direction: column; gap: 3px; text-decoration: none; }
+    .ch-nav-item:hover { background: #070f1c; }
+    .ch-nav-item.active { background: var(--deep); border-left: 2px solid var(--signal); }
+    .ch-top-row { display: flex; align-items: center; gap: 6px; }
+    .ch-nav-name { font-size: 11px; color: var(--mist); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ch-nav-item.active .ch-nav-name { color: var(--frost); }
+    .ch-nav-preview { font-size: 10px; color: var(--ash); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ch-count { font-size: 9px; background: var(--cmd); color: var(--mist); border-radius: 99px; padding: 1px 5px; }
+    .main-chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .ch-header { background: var(--bg-topbar); border-bottom: 0.5px solid var(--border); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 8px; }
+    .ch-title { font-size: 14px; font-weight: bold; color: var(--frost); letter-spacing: 0.06em; }
+    .ch-meta-text { font-size: 10px; color: var(--signal); margin-top: 2px; }
+    .messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+    .sys-msg { text-align: center; font-size: 9px; color: var(--cmd); letter-spacing: 0.06em; padding: 4px 0; }
+    .msg-row { display: flex; gap: 10px; align-items: flex-start; }
+    .msg-row.self { flex-direction: row-reverse; }
+    .msg-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--steel); display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--mist); flex-shrink: 0; margin-top: 2px; }
+    .msg-avatar.cmd { background: var(--cmd); color: var(--frost); }
+    .msg-avatar.self { background: #3B6D11; color: #C0DD97; }
+    .msg-content { max-width: 72%; }
+    .msg-row.self .msg-content { align-items: flex-end; display: flex; flex-direction: column; }
+    .msg-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+    .msg-row.self .msg-header { flex-direction: row-reverse; }
+    .msg-sender { font-size: 10px; font-weight: bold; color: var(--mist); }
+    .msg-sender.cmd { color: var(--signal); }
+    .msg-sender.self { color: var(--ops); }
+    .msg-time { font-size: 9px; color: var(--ash); }
+    .msg-bubble { background: #0a1528; border: 0.5px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #B5D4F4; line-height: 1.5; word-break: break-word; }
+    .msg-bubble.self { background: var(--deep); border-color: var(--cmd); color: var(--frost); }
+    .msg-enc { display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--steel); margin-top: 3px; }
+    .input-area { background: var(--bg-topbar); border-top: 0.5px solid var(--border); padding: 10px 14px; flex-shrink: 0; }
+    .input-tools { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .tool-btn { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--signal); background: transparent; border: 0.5px solid var(--border); border-radius: 4px; padding: 3px 8px; cursor: pointer; font-family: var(--font); }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .msg-input-box { flex: 1; background: var(--bg-app); border: 0.5px solid var(--cmd); border-radius: 6px; padding: 9px 12px; font-size: 12px; color: var(--frost); font-family: var(--font); outline: none; min-height: 38px; resize: none; }
+    .msg-input-box::placeholder { color: var(--ash); }
+    .msg-input-box:focus { border-color: var(--signal); }
+    .send-btn { width: 38px; height: 38px; background: var(--cmd); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; flex-shrink: 0; }
+    .burn-active { border-color: #854F0B !important; }
+    .members-panel { width: 160px; background: var(--bg-panel); border-left: 0.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+    .mp-header { padding: 10px 10px 8px; border-bottom: 0.5px solid var(--border); font-size: 10px; font-weight: bold; color: var(--mist); letter-spacing: 0.06em; }
+    .member-item { padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
+    .m-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--steel); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--mist); flex-shrink: 0; }
+    .m-avatar.online { background: #27500A; color: #C0DD97; }
+    .m-name { font-size: 10px; color: var(--mist); }
+    .m-role { font-size: 9px; color: var(--ash); }
+    .no-channel { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ash); font-size: 12px; flex-direction: column; gap: 8px; }
+    /* Mobile channel toggle */
+    .ch-toggle-btn { display: none; background: none; border: none; color: var(--signal); font-size: 18px; cursor: pointer; padding: 4px; }
+    .ch-sidebar-overlay { position: fixed; inset: 0; z-index: 199; background: rgba(0,0,0,.5); display: none; }
+    @media (max-width: 640px) {
+      .ch-sidebar { position: fixed; left: -210px; top: 0; bottom: 52px; z-index: 200; transition: left 0.25s; width: 200px !important; }
+      .ch-sidebar.open { left: 0; }
+      .members-panel { position: fixed; right: -210px; top: 0; bottom: 52px; z-index: 200; transition: right 0.25s; width: 200px !important; display: flex !important; }
+      .members-panel.open { right: 0; }
+      .ch-sidebar-overlay.show { display: block; }
+      .ch-toggle-btn { display: flex !important; }
+      #members-toggle-btn { display: flex !important; }
+      .msg-content { max-width: 85%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand">
+          <div class="tb-icon"><i class="ti ti-lock" aria-hidden="true"></i></div>
+          <span class="tb-name">ARCANUM</span>
+        </div>
+        <div class="tb-sep"></div>
+        <span class="tb-path" id="breadcrumb">CHANNELS</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> ENC: ACTIVE</div>
+        <div class="tb-item"><i class="ti ti-clock" aria-hidden="true"></i> <span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i></a>
+        <a href="/channels"  class="nav-btn active" title="Channels"><i class="ti ti-messages" aria-hidden="true"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin" aria-hidden="true"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report" aria-hidden="true"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users" aria-hidden="true"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout" class="nav-btn" title="Logout"><i class="ti ti-logout" aria-hidden="true"></i></a>
+      </nav>
+
+      <!-- Overlay for mobile sidebar -->
+      <div class="ch-sidebar-overlay" id="ch-overlay" onclick="closeSidebar()"></div>
+
+      <!-- Channel list sidebar -->
+      <div class="ch-sidebar" id="ch-sidebar">
+        <div class="sb-search">
+          <i class="ti ti-search" style="font-size:12px;color:var(--ash);" aria-hidden="true"></i>
+          <input type="text" placeholder="Search channels..." id="ch-search">
+        </div>
+        <div class="sb-section-lbl">Ops channels</div>
+        <div id="channel-nav"></div>
+      </div>
+
+      <!-- Chat area -->
+      <div class="main-chat">
+        <div class="ch-header" id="ch-header">
+          <button class="ch-toggle-btn" onclick="openSidebar()" title="Channels"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
+          <div style="flex:1;min-width:0;">
+            <div class="ch-title" id="ch-title">Select a channel</div>
+            <div class="ch-meta-text" id="ch-meta"></div>
+          </div>
+          <div class="flex gap-8 items-center">
+            <span class="enc-tag"><i class="ti ti-lock" aria-hidden="true"></i> AES-256</span>
+            <button class="ch-toggle-btn" id="members-toggle-btn" onclick="toggleMembers()" title="Operators" style="display:none;"><i class="ti ti-users" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="messages" id="messages">
+          <div class="no-channel">
+            <i class="ti ti-messages" style="font-size:32px;color:var(--steel);" aria-hidden="true"></i>
+            <span>← Select a channel to start</span>
+          </div>
+        </div>
+        <div class="input-area" id="input-area" style="display:none;">
+          <div class="input-tools">
+            <button class="tool-btn"><i class="ti ti-paperclip" aria-hidden="true"></i> Attach</button>
+            <button class="tool-btn"><i class="ti ti-map-pin" aria-hidden="true"></i> Grid</button>
+            <button class="tool-btn" id="burn-toggle"><i class="ti ti-flame" aria-hidden="true"></i> Burn</button>
+            <button class="tool-btn" onclick="location.href='/sitrep'"><i class="ti ti-file-report" aria-hidden="true"></i> Sitrep</button>
+          </div>
+          <div class="input-row">
+            <textarea class="msg-input-box" id="msg-input" placeholder="Encrypted message..." rows="1"></textarea>
+            <button class="send-btn" id="send-btn"><i class="ti ti-send" style="font-size:16px;color:var(--frost);" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Members panel -->
+      <div class="members-panel" id="members-panel">
+        <div class="mp-header">OPERATORS</div>
+        <div class="sb-section-lbl">Online</div>
+        <div id="members-online"></div>
+        <div class="sb-section-lbl" id="offline-label" style="display:none;">Offline</div>
+        <div id="members-offline"></div>
+      </div>
+    </div>
+
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"  title="Channels" class="active"><i class="ti ti-messages"></i><span>COMMS</span></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+      <a href="/grid"      title="Grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"    title="Sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+      <a href="/operators" title="Operators"><i class="ti ti-users"></i><span>OPS</span></a>
+    </nav>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/arcanum.js"></script>
+  <script>
+    let currentUser = null;
+    let currentChannel = null;
+    let burnMode = false;
+    const socket = io();
+    const onlineInChannel = new Set();
+
+    async function init() {
+      currentUser = await initTopbar('CHANNELS');
+      loadChannels();
+      loadOperators();
+
+      // If URL has channel id
+      const pathParts = location.pathname.split('/');
+      const urlChannelId = pathParts.length > 2 && pathParts[2] ? pathParts[2] : null;
+      if (urlChannelId) {
+        setTimeout(async () => {
+          const channels = await api('/api/channels');
+          const ch = channels.find(c => c.id === urlChannelId);
+          if (ch) openChannel(ch.id, ch.name);
+        }, 300);
+      }
+    }
+
+    async function loadChannels() {
+      const channels = await api('/api/channels');
+      const nav = document.getElementById('channel-nav');
+      nav.innerHTML = channels.map(ch => `
+        <a class="ch-nav-item" data-id="${ch.id}" data-name="${ch.name}" href="#" onclick="openChannel('${ch.id}','${ch.name}');closeSidebar();return false;">
+          <div class="ch-top-row">
+            <span class="status-dot ${ch.status==='active'?'dot-green':ch.status==='alert'?'dot-amber':'dot-gray'}"></span>
+            <span class="ch-nav-name">${ch.name}</span>
+            ${ch.unread ? `<span class="ch-count">${ch.unread}</span>` : ''}
+          </div>
+          <span class="ch-nav-preview">Tap to open</span>
+        </a>
+      `).join('');
+
+      // Search
+      document.getElementById('ch-search').addEventListener('input', function() {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('.ch-nav-item').forEach(el => {
+          el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+    }
+
+    async function loadOperators() {
+      const ops = await api('/api/operators');
+      const online = ops.filter(o => o.active);
+      const onlineDiv = document.getElementById('members-online');
+      onlineDiv.innerHTML = online.map(op => `
+        <div class="member-item">
+          <div class="m-avatar online">${op.name.slice(0,2)}</div>
+          <div><div class="m-name">${op.name}</div><div class="m-role">${op.role} · LVL ${op.clearance}</div></div>
+        </div>`).join('');
+    }
+
+    async function openChannel(id, name) {
+      if (currentChannel) socket.emit('leave-channel', currentChannel);
+      currentChannel = id;
+      document.querySelectorAll('.ch-nav-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+      document.getElementById('ch-title').textContent = name;
+      document.getElementById('ch-meta').textContent = 'end-to-end encrypted · clearance LVL 2+';
+      document.getElementById('input-area').style.display = 'block';
+      const msgs = document.getElementById('messages');
+      msgs.innerHTML = `<div class="sys-msg">— SESSION OPENED · ENCRYPTION VERIFIED · ${new Date().toUTCString().split(' ')[4]} UTC —</div>`;
+
+      // Load message history
+      const history = await api(`/api/messages/${id}`);
+      history.forEach(msg => appendMessage(msg, msg.user === currentUser?.name));
+
+      socket.emit('join-channel', { channel: id, user: currentUser.name });
+    }
+
+    function appendMessage(msg, isSelf) {
+      const msgs = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `msg-row${isSelf ? ' self' : ''}`;
+      div.innerHTML = `
+        <div class="msg-avatar${isSelf ? ' self' : ''}">${msg.user.slice(0,2).toUpperCase()}</div>
+        <div class="msg-content">
+          <div class="msg-header">
+            <span class="msg-sender${isSelf?' self':''}">${msg.user}</span>
+            <span class="msg-time">${msg.time || new Date().toUTCString().split(' ')[4].slice(0,5)}</span>
+          </div>
+          <div class="msg-bubble${isSelf?' self':''}">${escapeHtml(msg.message)}</div>
+          ${msg.burn ? '<div class="burn-tag"><i class="ti ti-flame" aria-hidden="true"></i> burn after read · 5m</div>' : ''}
+          <div class="msg-enc"><i class="ti ti-lock" aria-hidden="true"></i> encrypted · delivered</div>
+        </div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+
+      if (msg.burn) {
+        setTimeout(() => {
+          div.style.transition = 'opacity 1s';
+          div.style.opacity = '0';
+          setTimeout(() => div.remove(), 1000);
+        }, 5 * 60 * 1000);
+      }
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    document.getElementById('burn-toggle').addEventListener('click', function() {
+      burnMode = !burnMode;
+      this.style.color = burnMode ? '#EF9F27' : '';
+      document.getElementById('msg-input').classList.toggle('burn-active', burnMode);
+    });
+
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('msg-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    function sendMessage() {
+      const inp = document.getElementById('msg-input');
+      const text = inp.value.trim();
+      if (!text || !currentChannel) return;
+      socket.emit('send-message', { channel: currentChannel, user: currentUser.name, message: text, burn: burnMode });
+      inp.value = '';
+    }
+
+    socket.on('new-message', (msg) => {
+      appendMessage(msg, msg.user === currentUser?.name);
+    });
+
+    socket.on('user-joined', ({ user }) => {
+      const msgs = document.getElementById('messages');
+      msgs.innerHTML += `<div class="sys-msg">— ${user} joined the channel —</div>`;
+      msgs.scrollTop = msgs.scrollHeight;
+    });
+
+    socket.on('user-left', ({ user }) => {
+      const msgs = document.getElementById('messages');
+      msgs.innerHTML += `<div class="sys-msg">— ${user} left the channel —</div>`;
+      msgs.scrollTop = msgs.scrollHeight;
+    });
+
+    // Mobile sidebar — channels list (left)
+    function openSidebar() {
+      document.getElementById('ch-sidebar').classList.add('open');
+      document.getElementById('members-panel').classList.remove('open');
+      document.getElementById('ch-overlay').classList.add('show');
+    }
+    function closeSidebar() {
+      document.getElementById('ch-sidebar').classList.remove('open');
+      document.getElementById('ch-overlay').classList.remove('show');
+    }
+
+    // Mobile members panel (right)
+    function toggleMembers() {
+      const panel = document.getElementById('members-panel');
+      const overlay = document.getElementById('ch-overlay');
+      const isOpen = panel.classList.contains('open');
+      if (isOpen) {
+        panel.classList.remove('open');
+        overlay.classList.remove('show');
+      } else {
+        panel.classList.add('open');
+        document.getElementById('ch-sidebar').classList.remove('open');
+        overlay.classList.add('show');
+      }
+    }
+    // Overlay juga nutup members panel
+    document.getElementById('ch-overlay').addEventListener('click', () => {
+      document.getElementById('members-panel').classList.remove('open');
+    });
+
+    init();
+  </script>
+</body>
+</html>

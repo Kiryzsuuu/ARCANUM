@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Sitrep</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .page-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px; }
+    .ph-title { font-size:14px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .ph-sub   { font-size:10px; color:var(--signal); margin-top:2px; }
+    .filter-bar { background:var(--bg-panel); border-bottom:.5px solid var(--border); padding:8px 16px; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+    .filter-pill { font-size:10px; padding:3px 10px; border-radius:99px; border:.5px solid var(--border); color:var(--ash); cursor:pointer; background:transparent; font-family:var(--font); }
+    .filter-pill.active { background:var(--steel); color:var(--mist); border-color:var(--cmd); }
+    .content { flex:1; display:flex; overflow:hidden; }
+    .list-col { width:300px; border-right:.5px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+    .list-header { padding:8px 12px; border-bottom:.5px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+    .sr-list { overflow-y:auto; flex:1; }
+    .sr-item { padding:10px 12px; border-bottom:.5px solid var(--abyss); cursor:pointer; display:flex; gap:10px; }
+    .sr-item:hover { background:var(--deep); }
+    .sr-item.active { background:var(--deep); border-left:2px solid var(--signal); }
+    .sr-bar { width:4px; border-radius:2px; flex-shrink:0; align-self:stretch; }
+    .sr-bar.high { background:var(--threat); }
+    .sr-bar.medium { background:var(--siaga); }
+    .sr-bar.low { background:var(--ops); }
+    .sr-bar.info { background:var(--signal); }
+    .sr-body { flex:1; min-width:0; }
+    .sr-top { display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+    .sr-id { font-size:9px; color:var(--cmd); font-weight:bold; }
+    .sr-time { font-size:9px; color:var(--ash); margin-left:auto; }
+    .sr-title { font-size:11px; color:var(--frost); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+    .sr-meta-row { display:flex; gap:8px; }
+    .sr-unit { font-size:9px; color:var(--signal); }
+    .sr-author { font-size:9px; color:var(--ash); }
+    .detail-col { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .detail-header { padding:12px 16px; border-bottom:.5px solid var(--border); display:flex; gap:12px; flex-shrink:0; flex-wrap:wrap; }
+    .dh-id { font-size:10px; color:var(--cmd); margin-bottom:4px; }
+    .dh-title { font-size:14px; font-weight:bold; color:var(--frost); line-height:1.4; }
+    .dh-badges { display:flex; flex-direction:column; align-items:flex-end; gap:6px; margin-left:auto; flex-shrink:0; }
+    .detail-meta { padding:10px 16px; border-bottom:.5px solid var(--border); display:grid; grid-template-columns:repeat(4,1fr); gap:10px; flex-shrink:0; }
+    .dm-key { font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+    .dm-val { font-size:11px; color:var(--mist); }
+    .detail-body { flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:14px; }
+    .sec-lbl { font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+    .body-block { background:var(--bg-panel); border:.5px solid var(--border); border-radius:5px; padding:10px 12px; }
+    .body-text { font-size:11px; color:#B5D4F4; line-height:1.7; }
+    .cl-item { display:flex; align-items:center; gap:8px; font-size:11px; margin-bottom:6px; }
+    .tl-item { display:flex; gap:10px; padding-bottom:10px; }
+    .tl-dot { width:8px; height:8px; border-radius:50%; border:1.5px solid; flex-shrink:0; margin-top:3px; }
+    .tl-line { width:1px; background:var(--border); flex:1; margin:4px 0 0 3px; }
+    .tl-time { font-size:9px; color:var(--ash); margin-bottom:2px; }
+    .tl-event { font-size:11px; color:var(--mist); }
+    .action-bar { background:var(--bg-topbar); border-top:.5px solid var(--border); padding:10px 16px; display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+    .empty-state { flex:1; display:flex; align-items:center; justify-content:center; color:var(--ash); font-size:12px; flex-direction:column; gap:8px; }
+    /* Modal */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:999; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modal { background:var(--bg-panel); border:.5px solid var(--border); border-radius:8px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+    .modal-header { padding:14px 16px; border-bottom:.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .modal-title { font-size:13px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .modal-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
+    .modal-footer { padding:12px 16px; border-top:.5px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+    .form-group { display:flex; flex-direction:column; gap:5px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    select.field-select { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); height:38px; color:var(--frost); font-family:var(--font); font-size:12px; padding:0 10px; outline:none; width:100%; }
+    textarea.field-textarea { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); color:var(--frost); font-family:var(--font); font-size:12px; padding:10px 12px; outline:none; width:100%; resize:vertical; min-height:100px; }
+    textarea.field-textarea:focus { border-color:var(--signal); }
+    .toast { position:fixed; bottom:70px; right:20px; background:var(--deep); border:.5px solid var(--cmd); border-radius:6px; padding:10px 16px; font-size:11px; color:var(--frost); z-index:2000; display:none; max-width:300px; }
+    .toast.error { background:#1a0505; border-color:#A32D2D; color:var(--threat); }
+    @media (max-width:640px) {
+      .content { flex-direction:column; }
+      .list-col { width:100% !important; border-right:none !important; border-bottom:.5px solid var(--border); max-height:280px; }
+      .detail-meta { grid-template-columns:1fr 1fr !important; }
+      .detail-header { padding:10px; }
+      .dh-title { font-size:12px; }
+      .form-row { grid-template-columns:1fr !important; }
+      .detail-body { padding:10px; }
+      .action-bar { padding:8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand"><div class="tb-icon"><i class="ti ti-lock" aria-hidden="true"></i></div><span class="tb-name">ARCANUM</span></div>
+        <div class="tb-sep"></div>
+        <span class="tb-path">SITREP // LOG SITUASI</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> ENC: ACTIVE</div>
+        <div class="tb-item"><i class="ti ti-clock" aria-hidden="true"></i> <span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+    <div class="body">
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages" aria-hidden="true"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin" aria-hidden="true"></i></a>
+        <a href="/sitrep"    class="nav-btn active" title="Sitrep"><i class="ti ti-file-report" aria-hidden="true"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users" aria-hidden="true"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout" class="nav-btn"><i class="ti ti-logout" aria-hidden="true"></i></a>
+      </nav>
+      <div class="main">
+        <div class="page-header">
+          <div><div class="ph-title">SITREP LOG</div><div class="ph-sub">// SITUATION REPORT — ALL UNITS — AUTO-ARCHIVED</div></div>
+          <div class="flex gap-8">
+            <button class="btn btn-primary btn-sm" onclick="openNewSitrep()"><i class="ti ti-plus" aria-hidden="true"></i> New sitrep</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-pill active" data-filter="all">All</button>
+          <button class="filter-pill" data-filter="pending">Pending</button>
+          <button class="filter-pill" data-filter="reviewed">Reviewed</button>
+          <button class="filter-pill" data-filter="closed">Closed</button>
+        </div>
+        <div class="content">
+          <div class="list-col">
+            <div class="list-header">
+              <span style="font-size:9px;color:var(--cmd);text-transform:uppercase;letter-spacing:.08em;">Reports</span>
+              <span style="font-size:9px;color:var(--ash);" id="list-count"></span>
+            </div>
+            <div class="sr-list" id="sr-list"></div>
+          </div>
+          <div class="detail-col" id="detail-col">
+            <div class="empty-state">
+              <i class="ti ti-file-report" style="font-size:32px;color:var(--steel);" aria-hidden="true"></i>
+              <span>Select a report to view</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"  title="Channels"><i class="ti ti-messages"></i><span>COMMS</span></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+      <a href="/grid"      title="Grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"    title="Sitrep" class="active"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+      <a href="/operators" title="Operators"><i class="ti ti-users"></i><span>OPS</span></a>
+    </nav>
+  </div>
+
+  <!-- New Sitrep Modal -->
+  <div class="modal-overlay" id="sitrep-modal" style="display:none;" onclick="closeNewSitrep(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">NEW SITUATION REPORT</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sitrep-modal').style.display='none'"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-heading" aria-hidden="true"></i> Report Title</div>
+          <div class="input-box"><input type="text" id="ns-title" placeholder="Brief situation description" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-users" aria-hidden="true"></i> Unit</div>
+            <div class="input-box"><input type="text" id="ns-unit" placeholder="e.g. ALPHA, FOXTROT" autocomplete="off"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-map-pin" aria-hidden="true"></i> Grid Reference</div>
+            <div class="input-box"><input type="text" id="ns-grid" placeholder="QR-XXXX" autocomplete="off"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-alert-circle" aria-hidden="true"></i> Priority</div>
+          <select class="field-select" id="ns-priority">
+            <option value="info">INFO — Routine</option>
+            <option value="low">LOW — Monitor</option>
+            <option value="medium" selected>MEDIUM — Attention required</option>
+            <option value="high">HIGH — Immediate action</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-file-text" aria-hidden="true"></i> Report Body</div>
+          <textarea class="field-textarea" id="ns-body" placeholder="Detailed situation description..."></textarea>
+        </div>
+        <div id="ns-error" style="display:none;background:#1a0505;border:.5px solid #A32D2D;border-radius:4px;padding:8px 12px;font-size:11px;color:var(--threat);display:none;align-items:center;gap:8px;">
+          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+          <span id="ns-err-msg"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('sitrep-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-primary" id="ns-save-btn" onclick="submitNewSitrep()">
+          <i class="ti ti-send" aria-hidden="true"></i> Submit Sitrep
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/arcanum.js"></script>
+  <script>
+    let allSitreps = [];
+    let activeFilter = 'all';
+    let currentUser = null;
+
+    async function init() {
+      currentUser = await initTopbar('SITREP LOG');
+      allSitreps = await api('/api/sitreps');
+      renderList(allSitreps);
+    }
+
+    function renderList(sitreps) {
+      const list = document.getElementById('sr-list');
+      document.getElementById('list-count').textContent = `${sitreps.length} · ${sitreps.filter(s=>s.status==='pending').length} pending`;
+      if (!sitreps.length) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--ash);font-size:11px;">No reports found</div>';
+        return;
+      }
+      list.innerHTML = sitreps.map(s => `
+        <div class="sr-item" data-id="${s.id}" onclick="showDetail('${s.id}')">
+          <div class="sr-bar ${s.priority}"></div>
+          <div class="sr-body">
+            <div class="sr-top">
+              <span class="sr-id">${s.id}</span>
+              ${statusBadge(s.status)}
+              <span class="sr-time">${s.time}</span>
+            </div>
+            <div class="sr-title">${s.title}</div>
+            <div class="sr-meta-row"><span class="sr-unit">${s.unit}</span><span class="sr-author">${s.author}</span></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function showDetail(id) {
+      const s = allSitreps.find(x => x.id === id);
+      if (!s) return;
+      document.querySelectorAll('.sr-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+      const col = document.getElementById('detail-col');
+      const pColor = { high:'var(--threat)', medium:'var(--siaga)', low:'var(--ops)', info:'var(--signal)' }[s.priority];
+      const isClosed = s.status === 'closed';
+      const canApprove = currentUser && (currentUser.clearance >= 2);
+
+      col.innerHTML = `
+        <div class="detail-header">
+          <div style="flex:1;min-width:0;">
+            <div class="dh-id">${s.id} · ${s.unit}</div>
+            <div class="dh-title">${s.title}</div>
+          </div>
+          <div class="dh-badges">
+            <span class="badge" style="background:#1a0505;color:${pColor};border:.5px solid ${pColor};">${s.priority.toUpperCase()} PRIORITY</span>
+            ${statusBadge(s.status)}
+          </div>
+        </div>
+        <div class="detail-meta">
+          <div><div class="dm-key">Submitted by</div><div class="dm-val">${s.author}</div></div>
+          <div><div class="dm-key">Unit</div><div class="dm-val">${s.unit}</div></div>
+          <div><div class="dm-key">Grid ref</div><div class="dm-val" style="color:var(--ops);">${s.grid || '—'}</div></div>
+          <div><div class="dm-key">Timestamp</div><div class="dm-val">${s.time} UTC</div></div>
+        </div>
+        <div class="detail-body">
+          <div>
+            <div class="sec-lbl">Situation report</div>
+            <div class="body-block">
+              <div class="body-text">${s.body || `Laporan dari unit <strong style="color:var(--signal);">${s.unit}</strong> pada grid <strong style="color:var(--ops);">${s.grid||'N/A'}</strong>. ${s.title}. Menunggu review command.`}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <div class="sec-lbl">Checklist</div>
+              <div class="body-block">
+                <div class="cl-item"><i class="ti ti-circle-check" style="color:var(--ops);font-size:14px;" aria-hidden="true"></i><span style="color:var(--ops);">Posisi dilaporkan</span></div>
+                <div class="cl-item"><i class="ti ti-${s.status!=='pending'?'circle-check" style="color:var(--ops)':'clock" style="color:var(--siaga)'};font-size:14px;" aria-hidden="true"></i><span style="color:${s.status!=='pending'?'var(--ops)':'var(--siaga)'};">Review command</span></div>
+                <div class="cl-item"><i class="ti ti-${s.status==='closed'?'circle-check" style="color:var(--ops)':'circle-dashed" style="color:var(--ash)'};font-size:14px;" aria-hidden="true"></i><span style="color:${s.status==='closed'?'var(--ops)':'var(--ash)'};">Closed &amp; archived</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="sec-lbl">Timeline</div>
+              <div class="body-block">
+                <div class="tl-item">
+                  <div><div class="tl-dot" style="background:#3B6D11;border-color:var(--ops);"></div><div class="tl-line"></div></div>
+                  <div><div class="tl-time">${s.time} UTC</div><div class="tl-event">Sitrep dibuat</div></div>
+                </div>
+                <div class="tl-item">
+                  <div><div class="tl-dot" style="background:${s.status!=='pending'?'var(--ops)':'var(--cmd)'};border-color:${s.status!=='pending'?'var(--ops)':'var(--signal)'};"></div></div>
+                  <div><div class="tl-time">${s.status!=='pending'?'Reviewed':'Pending'}</div><div class="tl-event">${s.status!=='pending'?'Review selesai':'Menunggu review CMD'}</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="action-bar">
+          ${!isClosed && canApprove ? `
+            <button class="btn btn-danger btn-sm" onclick="updateStatus('${s.id}','closed')">
+              <i class="ti ti-x" aria-hidden="true"></i> Close
+            </button>
+            <div class="ml-auto flex gap-8">
+              ${s.status === 'pending' ? `
+                <button class="btn btn-secondary btn-sm" onclick="updateStatus('${s.id}','reviewed')">
+                  <i class="ti ti-eye" aria-hidden="true"></i> Mark Reviewed
+                </button>
+              ` : ''}
+              <button class="btn btn-primary btn-sm" onclick="updateStatus('${s.id}','closed')">
+                <i class="ti ti-circle-check" aria-hidden="true"></i> Approve &amp; Close
+              </button>
+            </div>
+          ` : `<span style="font-size:10px;color:var(--ash);">${isClosed ? 'Report archived — no further actions' : 'View only'}</span>`}
+        </div>`;
+    }
+
+    async function updateStatus(id, newStatus) {
+      const result = await api(`/api/sitreps/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (result.error) { showToast(result.error, true); return; }
+      // Update local copy
+      const s = allSitreps.find(x => x.id === id);
+      if (s) s.status = newStatus;
+      const filtered = activeFilter === 'all' ? allSitreps : allSitreps.filter(s => s.status === activeFilter);
+      renderList(filtered);
+      showDetail(id);
+      showToast(`Sitrep ${id} — status updated to ${newStatus.toUpperCase()}`);
+    }
+
+    document.querySelectorAll('.filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeFilter = pill.dataset.filter;
+        const filtered = activeFilter === 'all' ? allSitreps : allSitreps.filter(s => s.status === activeFilter);
+        renderList(filtered);
+      });
+    });
+
+    // New Sitrep
+    function openNewSitrep() {
+      document.getElementById('ns-title').value = '';
+      document.getElementById('ns-unit').value = '';
+      document.getElementById('ns-grid').value = '';
+      document.getElementById('ns-priority').value = 'medium';
+      document.getElementById('ns-body').value = '';
+      document.getElementById('ns-error').style.display = 'none';
+      document.getElementById('sitrep-modal').style.display = 'flex';
+    }
+    function closeNewSitrep(e) { if (e.target.id === 'sitrep-modal') document.getElementById('sitrep-modal').style.display = 'none'; }
+
+    async function submitNewSitrep() {
+      const title = document.getElementById('ns-title').value.trim();
+      const unit = document.getElementById('ns-unit').value.trim();
+      if (!title || !unit) { showNsError('Title and Unit are required'); return; }
+      const btn = document.getElementById('ns-save-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ti ti-loader" aria-hidden="true"></i> Submitting...';
+      try {
+        const result = await api('/api/sitreps', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            unit: unit.toUpperCase(),
+            grid: document.getElementById('ns-grid').value.trim().toUpperCase(),
+            priority: document.getElementById('ns-priority').value,
+            body: document.getElementById('ns-body').value.trim()
+          })
+        });
+        if (result.error) { showNsError(result.error); return; }
+        document.getElementById('sitrep-modal').style.display = 'none';
+        allSitreps = await api('/api/sitreps');
+        renderList(allSitreps);
+        showToast('Sitrep submitted successfully');
+      } catch { showNsError('Network error — try again'); }
+      finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send" aria-hidden="true"></i> Submit Sitrep'; }
+    }
+    function showNsError(msg) {
+      const box = document.getElementById('ns-error');
+      document.getElementById('ns-err-msg').textContent = msg;
+      box.style.display = 'flex';
+    }
+
+    function showToast(msg, isError=false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast' + (isError ? ' error' : '');
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

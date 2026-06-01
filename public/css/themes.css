@@ -1,0 +1,117 @@
+/* ARCANUM — Theme System
+   Themes override CSS variables defined in arcanum.css
+   Applied via html[data-theme="name"]
+*/
+
+/* ── NAVY (default) ── */
+html[data-theme="navy"], html:not([data-theme]) {
+  --navy:      #042C53;
+  --abyss:     #060e1a;
+  --deep:      #0C1F38;
+  --steel:     #0C447C;
+  --cmd:       #185FA5;
+  --signal:    #378ADD;
+  --mist:      #85B7EB;
+  --frost:     #E6F1FB;
+  --ash:       #444441;
+  --slate:     #2C2C2A;
+  --bg-app:    #07101d;
+  --bg-panel:  #060e1a;
+  --bg-topbar: #06101e;
+  --bg-active: #0C1F38;
+  --bg-input:  #07101d;
+  --border:    #0C447C;
+  --border-light: rgba(12,68,124,0.4);
+  --map-filter: none;
+}
+
+/* ── MATRIX (green terminal) ── */
+html[data-theme="matrix"] {
+  --navy:      #041a08;
+  --abyss:     #020b04;
+  --deep:      #081f0c;
+  --steel:     #0d4a1a;
+  --cmd:       #166b25;
+  --signal:    #22cc44;
+  --mist:      #5ddd80;
+  --frost:     #b8f5c8;
+  --ash:       #2a4a30;
+  --slate:     #1a2e1e;
+  --bg-app:    #010804;
+  --bg-panel:  #020b04;
+  --bg-topbar: #030d05;
+  --bg-active: #081f0c;
+  --bg-input:  #010804;
+  --border:    #0d4a1a;
+  --border-light: rgba(13,74,26,0.4);
+  --map-filter: hue-rotate(140deg) saturate(0.7) brightness(0.85);
+}
+
+/* ── ABYSS (pure dark) ── */
+html[data-theme="abyss"] {
+  --navy:      #141414;
+  --abyss:     #080808;
+  --deep:      #1c1c1c;
+  --steel:     #383838;
+  --cmd:       #505050;
+  --signal:    #c0c0c0;
+  --mist:      #d8d8d8;
+  --frost:     #f0f0f0;
+  --ash:       #4a4a4a;
+  --slate:     #303030;
+  --bg-app:    #050505;
+  --bg-panel:  #0a0a0a;
+  --bg-topbar: #080808;
+  --bg-active: #1c1c1c;
+  --bg-input:  #050505;
+  --border:    #303030;
+  --border-light: rgba(48,48,48,0.4);
+  --map-filter: grayscale(0.8) brightness(0.7);
+}
+
+/* ── DESERT (sand / desert ops) ── */
+html[data-theme="desert"] {
+  --navy:      #2e1f0a;
+  --abyss:     #180f04;
+  --deep:      #241808;
+  --steel:     #6b4c1e;
+  --cmd:       #8b6422;
+  --signal:    #d4a832;
+  --mist:      #e8c878;
+  --frost:     #f5e8c0;
+  --ash:       #5a4228;
+  --slate:     #3a2c18;
+  --bg-app:    #100a03;
+  --bg-panel:  #180f04;
+  --bg-topbar: #140c04;
+  --bg-active: #241808;
+  --bg-input:  #100a03;
+  --border:    #6b4c1e;
+  --border-light: rgba(107,76,30,0.4);
+  --map-filter: sepia(0.5) saturate(0.8) brightness(0.75);
+}
+
+/* ── CRIMSON (red alert) ── */
+html[data-theme="crimson"] {
+  --navy:      #2a0808;
+  --abyss:     #180404;
+  --deep:      #220a0a;
+  --steel:     #5c1616;
+  --cmd:       #8c1e1e;
+  --signal:    #e02020;
+  --mist:      #e87878;
+  --frost:     #fad0d0;
+  --ash:       #5a2828;
+  --slate:     #3a1818;
+  --bg-app:    #100202;
+  --bg-panel:  #180404;
+  --bg-topbar: #140303;
+  --bg-active: #220a0a;
+  --bg-input:  #100202;
+  --border:    #5c1616;
+  --border-light: rgba(92,22,22,0.4);
+  --map-filter: hue-rotate(320deg) saturate(0.6) brightness(0.7);
+}
+
+/* ── Map tile filter (applies to Leaflet tiles per theme) ── */
+.leaflet-tile-pane { filter: var(--map-filter, none); }

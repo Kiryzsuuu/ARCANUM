@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Operators</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .page-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px; }
+    .ph-title { font-size:14px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .ph-sub   { font-size:10px; color:var(--signal); margin-top:2px; }
+    .content  { flex:1; padding:14px 16px; overflow-y:auto; }
+    .ops-table { width:100%; border-collapse:collapse; }
+    .ops-table th { font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.08em; padding:8px 12px; border-bottom:.5px solid var(--border); text-align:left; white-space:nowrap; }
+    .ops-table td { padding:10px 12px; border-bottom:.5px solid var(--abyss); font-size:11px; color:var(--mist); vertical-align:middle; }
+    .ops-table tr:hover td { background:rgba(12,31,56,.5); }
+    .op-id { font-family:var(--font); color:var(--signal); font-weight:bold; font-size:10px; }
+    .op-name { color:var(--frost); font-weight:bold; font-size:12px; }
+    .op-role { font-size:9px; color:var(--ash); margin-top:2px; }
+    .clr-badge { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; font-size:10px; font-weight:bold; background:var(--deep); color:var(--signal); border:.5px solid var(--cmd); }
+    .clr-badge.lvl3 { background:#185FA5; color:var(--frost); border-color:#378ADD; }
+    .action-btns { display:flex; gap:6px; }
+    .empty-ops { padding:40px; text-align:center; color:var(--ash); font-size:12px; }
+    /* Modal */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:999; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modal { background:var(--bg-panel); border:.5px solid var(--border); border-radius:8px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; }
+    .modal-header { padding:14px 16px; border-bottom:.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .modal-title { font-size:13px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .modal-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
+    .modal-footer { padding:12px 16px; border-top:.5px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+    .form-group { display:flex; flex-direction:column; gap:5px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    select.field-select { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); height:38px; color:var(--frost); font-family:var(--font); font-size:12px; padding:0 10px; outline:none; width:100%; }
+    select.field-select:focus { border-color:var(--signal); }
+    .confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .confirm-box { background:var(--bg-panel); border:.5px solid #A32D2D; border-radius:8px; width:100%; max-width:360px; padding:20px; }
+    .confirm-title { font-size:13px; font-weight:bold; color:var(--threat); margin-bottom:8px; }
+    .confirm-msg { font-size:11px; color:var(--mist); margin-bottom:16px; line-height:1.6; }
+    .confirm-actions { display:flex; justify-content:flex-end; gap:8px; }
+    .toast { position:fixed; bottom:20px; right:20px; background:var(--deep); border:.5px solid var(--cmd); border-radius:6px; padding:10px 16px; font-size:11px; color:var(--frost); z-index:2000; display:none; max-width:300px; }
+    .toast.error { background:#1a0505; border-color:#A32D2D; color:var(--threat); }
+    .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+    @media (max-width:600px) { .stats-row { grid-template-columns:1fr 1fr; } .form-row { grid-template-columns:1fr; } }
+    .search-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+    .search-input { background:var(--bg-input); border:.5px solid var(--border); border-radius:4px; height:32px; display:flex; align-items:center; gap:6px; padding:0 10px; flex:1; min-width:160px; }
+    .search-input input { background:transparent; border:none; outline:none; color:var(--frost); font-family:var(--font); font-size:11px; flex:1; }
+    .filter-pill { font-size:10px; padding:3px 10px; border-radius:99px; border:.5px solid var(--border); color:var(--ash); cursor:pointer; background:transparent; font-family:var(--font); white-space:nowrap; }
+    .filter-pill.active { background:var(--steel); color:var(--mist); border-color:var(--cmd); }
+    .no-access { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:var(--ash); }
+    @media (max-width:768px) { .ops-table thead { display:none; } .ops-table tr { display:block; padding:10px 0; border-bottom:.5px solid var(--border); } .ops-table td { display:flex; justify-content:space-between; padding:4px 12px; border:none; } .ops-table td::before { content:attr(data-label); font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.06em; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand">
+          <div class="tb-icon"><i class="ti ti-lock" aria-hidden="true"></i></div>
+          <span class="tb-name">ARCANUM</span>
+        </div>
+        <div class="tb-sep"></div>
+        <span class="tb-path" id="breadcrumb">OPERATORS</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> ENC: ACTIVE</div>
+        <div class="tb-item"><i class="ti ti-clock" aria-hidden="true"></i> <span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages" aria-hidden="true"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin" aria-hidden="true"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report" aria-hidden="true"></i></a>
+        <a href="/operators" class="nav-btn active" title="Operators"><i class="ti ti-users" aria-hidden="true"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout"    class="nav-btn" title="Logout"><i class="ti ti-logout" aria-hidden="true"></i></a>
+      </nav>
+
+      <div class="main">
+        <div class="page-header">
+          <div>
+            <div class="ph-title" id="ph-title">OPERATOR MANAGEMENT</div>
+            <div class="ph-sub" id="ph-sub">// REGISTERED OPERATORS — CLEARANCE & ACCESS CONTROL</div>
+          </div>
+          <div class="flex gap-8" id="header-actions">
+            <button class="btn btn-ghost btn-sm" id="tab-operators" onclick="switchTab('operators')"
+              style="border-color:var(--cmd);color:var(--mist);">
+              <i class="ti ti-users" aria-hidden="true"></i> Operators
+            </button>
+            <button class="btn btn-ghost btn-sm" id="tab-invite" onclick="switchTab('invite')">
+              <i class="ti ti-ticket" aria-hidden="true"></i> Invite Codes
+            </button>
+            <button class="btn btn-ghost btn-sm" id="tab-units" onclick="switchTab('units')">
+              <i class="ti ti-map-pin" aria-hidden="true"></i> Field Units
+            </button>
+            <div style="width:.5px;height:16px;background:var(--border);flex-shrink:0;"></div>
+            <button class="btn btn-primary btn-sm" id="add-btn" style="display:none;">
+              <i class="ti ti-plus" aria-hidden="true"></i> <span id="add-btn-label">Add Operator</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="content">
+          <!-- Stats row -->
+          <div class="stats-row" id="stats-row">
+            <div class="stat-card"><div class="stat-num" id="s-total">--</div><div class="stat-label">Total operators</div></div>
+            <div class="stat-card"><div class="stat-num text-ops" id="s-active">--</div><div class="stat-label">Active</div></div>
+            <div class="stat-card"><div class="stat-num text-siaga" id="s-inactive">--</div><div class="stat-label">Inactive</div></div>
+          </div>
+
+          <!-- Search & filter -->
+          <div class="search-bar">
+            <div class="search-input">
+              <i class="ti ti-search" style="font-size:12px;color:var(--ash);" aria-hidden="true"></i>
+              <input type="text" placeholder="Search operators..." id="search-input" oninput="filterTable()">
+            </div>
+            <button class="filter-pill active" data-filter="all" onclick="setFilter('all',this)">All</button>
+            <button class="filter-pill" data-filter="active" onclick="setFilter('active',this)">Active</button>
+            <button class="filter-pill" data-filter="inactive" onclick="setFilter('inactive',this)">Inactive</button>
+          </div>
+
+          <!-- Table Operators -->
+          <div id="panel-operators">
+            <div class="panel" style="overflow:auto;">
+              <table class="ops-table" id="ops-table">
+                <thead>
+                  <tr>
+                    <th>Operator ID</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Clearance</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="ops-tbody">
+                  <tr><td colspan="7" class="empty-ops">Loading operators...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Invite Codes Panel -->
+          <div id="panel-invite" style="display:none;">
+            <div style="margin-bottom:10px;font-size:11px;color:var(--ash);">
+              Bagikan kode ke user — mereka daftar sendiri di
+              <span style="color:var(--signal);font-family:var(--font);">/register</span>
+              menggunakan kode ini. Role & clearance sudah ditentukan admin.
+            </div>
+            <div class="panel" style="overflow:auto;">
+              <table class="ops-table" id="inv-table">
+                <thead>
+                  <tr>
+                    <th>Kode</th>
+                    <th>Role</th>
+                    <th>Clearance</th>
+                    <th>Catatan</th>
+                    <th>Status</th>
+                    <th>Expired</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="inv-tbody">
+                  <tr><td colspan="7" class="empty-ops">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="op-modal" style="display:none;" onclick="closeModalOutside(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">ADD OPERATOR</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id">
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-id-badge" aria-hidden="true"></i> Operator ID</div>
+            <div class="input-box"><input type="text" id="f-id" placeholder="OPS-XXX" autocomplete="off" spellcheck="false"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-user" aria-hidden="true"></i> Name / Callsign</div>
+            <div class="input-box"><input type="text" id="f-name" placeholder="CALLSIGN" autocomplete="off"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-shield" aria-hidden="true"></i> Role</div>
+            <select class="field-select" id="f-role">
+              <option value="OPS">OPS — Operator</option>
+              <option value="RECON">RECON — Reconnaissance</option>
+              <option value="INTEL">INTEL — Intelligence</option>
+              <option value="LOG">LOG — Logistics</option>
+              <option value="CMD">CMD — Command</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-hierarchy" aria-hidden="true"></i> Clearance Level</div>
+            <select class="field-select" id="f-clearance">
+              <option value="1">LVL 1 — Restricted</option>
+              <option value="2" selected>LVL 2 — Operator</option>
+              <option value="3">LVL 3 — Command</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-lock" aria-hidden="true"></i> Passphrase <span style="color:var(--ash);font-size:9px;" id="pass-hint">(required for new operator)</span></div>
+          <div class="input-box">
+            <i class="ti ti-lock icon" aria-hidden="true"></i>
+            <input type="password" id="f-pass" placeholder="Min 6 characters">
+            <i class="ti ti-eye icon muted" style="cursor:pointer;" id="pass-eye" aria-hidden="true"></i>
+          </div>
+        </div>
+        <div class="form-group" id="status-group" style="display:none;">
+          <div class="field-label"><i class="ti ti-activity" aria-hidden="true"></i> Status</div>
+          <select class="field-select" id="f-active">
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </div>
+        <div id="modal-error" style="display:none;" class="err-box">
+          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+          <span id="modal-err-msg"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="saveOperator()">
+          <i class="ti ti-device-floppy" aria-hidden="true"></i> Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm deactivate -->
+  <div class="confirm-overlay" id="confirm-overlay" style="display:none;">
+    <div class="confirm-box">
+      <div class="confirm-title"><i class="ti ti-alert-triangle" aria-hidden="true"></i> Confirm Deactivation</div>
+      <div class="confirm-msg" id="confirm-msg">Are you sure you want to deactivate this operator?</div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-ok">Deactivate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate Invite Code Modal -->
+  <div class="modal-overlay" id="inv-modal" style="display:none;" onclick="if(event.target.id==='inv-modal')this.style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:400px;">
+      <div class="modal-header">
+        <span class="modal-title"><i class="ti ti-ticket" style="margin-right:6px;"></i>GENERATE INVITE CODE</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('inv-modal').style.display='none'"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:11px;color:var(--ash);margin-bottom:4px;">
+          Kode ini diberikan ke user. Mereka buka <span style="color:var(--signal);">/register</span> dan daftar sendiri menggunakan kode ini.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-shield"></i> Role</div>
+            <select class="field-select" id="inv-role">
+              <option value="OPS">OPS — Operator</option>
+              <option value="RECON">RECON</option>
+              <option value="INTEL">INTEL</option>
+              <option value="LOG">LOG — Logistics</option>
+              <option value="CMD">CMD — Command</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-hierarchy"></i> Clearance</div>
+            <select class="field-select" id="inv-clr">
+              <option value="1">LVL 1 — Restricted</option>
+              <option value="2" selected>LVL 2 — Operator</option>
+              <option value="3">LVL 3 — Command</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-note"></i> Catatan <span style="color:var(--ash);font-size:9px;">(opsional, misal: "untuk tim alpha")</span></div>
+          <div class="input-box"><input type="text" id="inv-note" placeholder="Catatan untuk kode ini..." autocomplete="off"></div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-clock"></i> Berlaku selama (jam) <span style="color:var(--ash);font-size:9px;">(0 = tidak ada batas)</span></div>
+          <div class="input-box"><input type="number" id="inv-exp" value="24" min="0" max="720" placeholder="24"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('inv-modal').style.display='none'">Batal</button>
+        <button class="btn btn-primary" id="inv-save"><i class="ti ti-ticket"></i> Generate Kode</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/arcanum.js"></script>
+  <script>
+    let allOperators = [];
+    let currentFilter = 'all';
+    let currentUser = null;
+    let currentTab = 'operators';
+
+    const ROLE_COLOR = { SA:'var(--signal)', ADMIN:'var(--signal)', CMD:'var(--signal)', OPS:'var(--ops)', RECON:'var(--siaga)', INTEL:'var(--mist)', LOG:'var(--ash)' };
+
+    async function init() {
+      currentUser = await initTopbar('OPERATORS');
+      const isAdmin = ['SA','ADMIN'].includes(currentUser.role) || currentUser.clearance >= 3;
+      if (isAdmin) {
+        const addBtn = document.getElementById('add-btn');
+        addBtn.style.display = 'flex';
+        addBtn.onclick = () => { if (currentTab === 'operators') openAddModal(); else openInviteModal(); };
+      }
+      await loadOperators();
+    }
+
+    // ── Tab switching ───────────────────────────────────────────
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('panel-operators').style.display = tab === 'operators' ? '' : 'none';
+      document.getElementById('panel-invite').style.display    = tab === 'invite'    ? '' : 'none';
+      document.getElementById('tab-operators').style.borderColor = tab === 'operators' ? 'var(--cmd)' : '';
+      document.getElementById('tab-operators').style.color       = tab === 'operators' ? 'var(--mist)' : '';
+      document.getElementById('tab-invite').style.borderColor    = tab === 'invite'    ? 'var(--cmd)' : '';
+      document.getElementById('tab-invite').style.color          = tab === 'invite'    ? 'var(--mist)' : '';
+      const addBtn = document.getElementById('add-btn');
+      if (tab === 'operators') {
+        document.getElementById('add-btn-label').textContent = 'Add Operator';
+        document.getElementById('ph-title').textContent = 'OPERATOR MANAGEMENT';
+        document.getElementById('ph-sub').textContent   = '// REGISTERED OPERATORS — CLEARANCE & ACCESS CONTROL';
+      } else {
+        document.getElementById('add-btn-label').textContent = 'Generate Kode';
+        document.getElementById('ph-title').textContent = 'INVITE CODES';
+        document.getElementById('ph-sub').textContent   = '// KODE UNDANGAN — USER DAFTAR SENDIRI MENGGUNAKAN KODE';
+        loadInviteCodes();
+      }
+    }
+
+    // ── Invite Codes ────────────────────────────────────────────
+    async function loadInviteCodes() {
+      const codes = await api('/api/invite-codes');
+      const tbody = document.getElementById('inv-tbody');
+      if (!codes.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-ops">Belum ada invite code. Klik "Generate Kode" untuk membuat.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = codes.map(c => {
+        const used    = !!c.usedBy;
+        const expired = c.expiresAt && new Date() > new Date(c.expiresAt);
+        const status  = used ? '<span class="badge badge-neutral">USED</span>'
+                      : expired ? '<span class="badge badge-danger">EXPIRED</span>'
+                      : '<span class="badge badge-ok">ACTIVE</span>';
+        const expStr  = c.expiresAt ? new Date(c.expiresAt).toLocaleString() : '—';
+        const regLink = `${location.origin}/register?code=${c.code}`;
+        return `<tr style="${(used||expired)?'opacity:.5':''}">
+          <td data-label="Kode">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-family:var(--font);font-size:13px;font-weight:bold;color:var(--signal);letter-spacing:.1em;">${c.code}</span>
+              <button class="btn btn-ghost btn-sm" onclick="copyCode('${c.code}','${regLink}')" title="Copy link"><i class="ti ti-copy" style="font-size:12px;"></i></button>
+            </div>
+          </td>
+          <td data-label="Role"><span style="color:${ROLE_COLOR[c.role]||'var(--mist)'};font-weight:bold;">${c.role}</span></td>
+          <td data-label="Clearance"><span class="clr-badge${c.clearance>=3?' lvl3':''}">LVL ${c.clearance}</span></td>
+          <td data-label="Catatan"><span style="font-size:10px;color:var(--ash);">${c.note||'—'}</span></td>
+          <td data-label="Status">${status} ${used ? `<span style="font-size:9px;color:var(--ash);"> → ${c.usedBy}</span>` : ''}</td>
+          <td data-label="Expired"><span style="font-size:10px;">${expStr}</span></td>
+          <td data-label="Aksi">
+            ${!used ? `<button class="btn btn-danger btn-sm" onclick="revokeCode('${c._id}')"><i class="ti ti-trash" style="font-size:11px;"></i> Hapus</button>` : '—'}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function copyCode(code, link) {
+      navigator.clipboard.writeText(link);
+      showToast('Link register disalin: ' + code);
+    }
+
+    async function revokeCode(id) {
+      if (!confirm('Hapus invite code ini?')) return;
+      const r = await api('/api/invite-codes/' + id, { method: 'DELETE' });
+      if (r.success) { loadInviteCodes(); showToast('Kode dihapus'); }
+    }
+
+    function openInviteModal() {
+      document.getElementById('inv-role').value = 'OPS';
+      document.getElementById('inv-clr').value  = '2';
+      document.getElementById('inv-note').value = '';
+      document.getElementById('inv-exp').value  = '24';
+      document.getElementById('inv-modal').style.display = 'flex';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('inv-save')?.addEventListener('click', async () => {
+        const body = {
+          role:         document.getElementById('inv-role').value,
+          clearance:    document.getElementById('inv-clr').value,
+          note:         document.getElementById('inv-note').value,
+          expiresHours: document.getElementById('inv-exp').value || null
+        };
+        const r = await api('/api/invite-codes', { method: 'POST', body: JSON.stringify(body) });
+        if (r.error) { showToast(r.error, true); return; }
+        document.getElementById('inv-modal').style.display = 'none';
+        showToast('Kode dibuat: ' + r.invite.code);
+        loadInviteCodes();
+      });
+    });
+
+    async function loadOperators() {
+      const data = await api('/api/operators');
+      allOperators = data;
+      const active = data.filter(o => o.active).length;
+      document.getElementById('s-total').textContent = data.length;
+      document.getElementById('s-active').textContent = active;
+      document.getElementById('s-inactive').textContent = data.length - active;
+      renderTable();
+    }
+
+    function setFilter(f, el) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      renderTable();
+    }
+
+    function filterTable() { renderTable(); }
+
+    function renderTable() {
+      const q = document.getElementById('search-input').value.toLowerCase();
+      let ops = allOperators;
+      if (currentFilter === 'active') ops = ops.filter(o => o.active);
+      if (currentFilter === 'inactive') ops = ops.filter(o => !o.active);
+      if (q) ops = ops.filter(o => o.id.toLowerCase().includes(q) || o.name.toLowerCase().includes(q) || o.role.toLowerCase().includes(q));
+
+      const tbody = document.getElementById('ops-tbody');
+      if (!ops.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-ops"><i class="ti ti-users" style="font-size:24px;color:var(--steel);display:block;margin:0 auto 8px;" aria-hidden="true"></i>No operators found</td></tr>`;
+        return;
+      }
+
+      const isCmd = currentUser && currentUser.clearance >= 3;
+      tbody.innerHTML = ops.map(op => {
+        const statusBadgeHtml = op.active
+          ? '<span class="badge badge-ok">ACTIVE</span>'
+          : '<span class="badge badge-neutral">INACTIVE</span>';
+        const lastLogin = op.lastLogin
+          ? new Date(op.lastLogin).toUTCString().split(' ').slice(1,4).join(' ')
+          : 'Never';
+        const roleColor = ROLE_COLOR[op.role] || 'var(--ash)';
+        const actions = isCmd ? `
+          <div class="action-btns">
+            <button class="btn btn-ghost btn-sm" onclick="openEditModal('${op.id}')"><i class="ti ti-edit" aria-hidden="true"></i> Edit</button>
+            ${op.active
+              ? `<button class="btn btn-danger btn-sm" onclick="confirmDeactivate('${op.id}','${op.name}')"><i class="ti ti-ban" aria-hidden="true"></i> Deactivate</button>`
+              : `<button class="btn btn-secondary btn-sm" onclick="reactivate('${op.id}')"><i class="ti ti-check" aria-hidden="true"></i> Activate</button>`}
+          </div>` : '<span style="font-size:9px;color:var(--ash);">—</span>';
+
+        return `
+          <tr style="${!op.active ? 'opacity:.5;' : ''}">
+            <td data-label="ID"><span class="op-id">${op.id}</span></td>
+            <td data-label="Name"><div class="op-name">${op.name}</div></td>
+            <td data-label="Role"><span style="color:${roleColor};font-size:10px;font-weight:bold;">${op.role}</span></td>
+            <td data-label="Clearance"><span class="clr-badge${op.clearance >= 3 ? ' lvl3' : ''}">${op.clearance}</span></td>
+            <td data-label="Status">${statusBadgeHtml}</td>
+            <td data-label="Last Login"><span style="font-size:10px;">${lastLogin}</span></td>
+            <td data-label="Actions">${actions}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').textContent = 'ADD OPERATOR';
+      document.getElementById('edit-id').value = '';
+      document.getElementById('f-id').value = '';
+      document.getElementById('f-id').disabled = false;
+      document.getElementById('f-name').value = '';
+      document.getElementById('f-role').value = 'OPS';
+      document.getElementById('f-clearance').value = '2';
+      document.getElementById('f-pass').value = '';
+      document.getElementById('pass-hint').textContent = '(required for new operator)';
+      document.getElementById('status-group').style.display = 'none';
+      document.getElementById('modal-error').style.display = 'none';
+      document.getElementById('op-modal').style.display = 'flex';
+    }
+
+    function openEditModal(id) {
+      const op = allOperators.find(o => o.id === id);
+      if (!op) return;
+      document.getElementById('modal-title').textContent = 'EDIT OPERATOR';
+      document.getElementById('edit-id').value = id;
+      document.getElementById('f-id').value = op.id;
+      document.getElementById('f-id').disabled = true;
+      document.getElementById('f-name').value = op.name;
+      document.getElementById('f-role').value = op.role;
+      document.getElementById('f-clearance').value = String(op.clearance);
+      document.getElementById('f-pass').value = '';
+      document.getElementById('pass-hint').textContent = '(leave blank to keep current)';
+      document.getElementById('f-active').value = String(op.active);
+      document.getElementById('status-group').style.display = 'block';
+      document.getElementById('modal-error').style.display = 'none';
+      document.getElementById('op-modal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('op-modal').style.display = 'none'; }
+    function closeModalOutside(e) { if (e.target.id === 'op-modal') closeModal(); }
+
+    async function saveOperator() {
+      const editId = document.getElementById('edit-id').value;
+      const body = {
+        operatorId: document.getElementById('f-id').value.trim().toUpperCase(),
+        name: document.getElementById('f-name').value.trim().toUpperCase(),
+        role: document.getElementById('f-role').value,
+        clearance: Number(document.getElementById('f-clearance').value),
+        passphrase: document.getElementById('f-pass').value,
+        active: document.getElementById('f-active').value === 'true'
+      };
+
+      if (!body.operatorId || !body.name) {
+        showModalError('Operator ID and Name are required');
+        return;
+      }
+      if (!editId && body.passphrase.length < 6) {
+        showModalError('Passphrase must be at least 6 characters');
+        return;
+      }
+
+      const saveBtn = document.getElementById('modal-save-btn');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="ti ti-loader" aria-hidden="true"></i> Saving...';
+
+      try {
+        let result;
+        if (editId) {
+          result = await api(`/api/operators/${editId}`, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+          });
+        } else {
+          result = await api('/api/operators', {
+            method: 'POST',
+            body: JSON.stringify(body)
+          });
+        }
+
+        if (result.error) {
+          showModalError(result.error);
+        } else {
+          closeModal();
+          showToast(editId ? 'Operator updated successfully' : 'Operator added successfully');
+          await loadOperators();
+        }
+      } catch (err) {
+        showModalError('Network error — try again');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';
+      }
+    }
+
+    function showModalError(msg) {
+      const box = document.getElementById('modal-error');
+      document.getElementById('modal-err-msg').textContent = msg;
+      box.style.display = 'flex';
+    }
+
+    let pendingDeactivateId = null;
+    function confirmDeactivate(id, name) {
+      pendingDeactivateId = id;
+      document.getElementById('confirm-msg').textContent = `Deactivate operator ${id} (${name})? They will no longer be able to log in.`;
+      document.getElementById('confirm-overlay').style.display = 'flex';
+    }
+    function closeConfirm() {
+      pendingDeactivateId = null;
+      document.getElementById('confirm-overlay').style.display = 'none';
+    }
+    document.getElementById('confirm-ok').addEventListener('click', async () => {
+      if (!pendingDeactivateId) return;
+      const id = pendingDeactivateId;
+      closeConfirm();
+      const result = await api(`/api/operators/${id}`, { method: 'DELETE' });
+      if (result.error) { showToast(result.error, true); return; }
+      showToast('Operator deactivated');
+      loadOperators();
+    });
+
+    async function reactivate(id) {
+      const op = allOperators.find(o => o.id === id);
+      if (!op) return;
+      const result = await api(`/api/operators/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: op.name, role: op.role, clearance: op.clearance, active: true })
+      });
+      if (result.error) { showToast(result.error, true); return; }
+      showToast('Operator reactivated');
+      loadOperators();
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast' + (isError ? ' error' : '');
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    // Password eye toggle
+    document.getElementById('pass-eye').addEventListener('click', () => {
+      const inp = document.getElementById('f-pass');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+
+    // Styles for the err-box (reuse from login)
+    const style = document.createElement('style');
+    style.textContent = `.err-box { background:#1a0505; border:.5px solid #A32D2D; border-radius:4px; padding:8px 12px; font-size:11px; color:var(--threat); display:flex; align-items:center; gap:8px; }`;
+    document.head.appendChild(style);
+
+    init();
+  </script>
+</body>
+</html>

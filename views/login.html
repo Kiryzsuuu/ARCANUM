@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Authenticate</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .login-wrap { display: grid; grid-template-columns: 1fr 1fr; height: 100dvh; }
+    .left  { background: var(--navy); border-right: 1px solid var(--steel); padding: 2.5rem 2rem; display: flex; flex-direction: column; justify-content: space-between; }
+    .right { background: var(--abyss); padding: 2.5rem 2rem; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .brand-icon-lg { width: 42px; height: 42px; background: var(--cmd); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--frost); flex-shrink: 0; }
+    .brand-name-lg { font-size: 24px; font-weight: bold; color: var(--frost); letter-spacing: 0.14em; }
+    .brand-tag { font-size: 11px; color: var(--signal); letter-spacing: 0.05em; margin-top: 2px; }
+    .stat-block { display: flex; flex-direction: column; gap: 12px; }
+    .stat-row-login { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+    .stat-row-login .label { color: var(--mist); flex: 1; }
+    .stat-row-login .val   { color: var(--frost); font-weight: bold; }
+    .class-box { display: inline-flex; align-items: center; gap: 6px; background: var(--deep); border: 0.5px solid var(--signal); border-radius: 4px; padding: 5px 10px; font-size: 10px; color: var(--mist); letter-spacing: 0.08em; }
+    .footer-warn { font-size: 10px; color: var(--steel); line-height: 1.8; }
+    .form-group { margin-bottom: 1rem; }
+    .login-title { font-size: 16px; font-weight: bold; color: var(--frost); margin-bottom: 4px; letter-spacing: 0.04em; }
+    .login-sub   { font-size: 10px; color: var(--signal); margin-bottom: 1.75rem; }
+    .opt-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 8px; }
+    .check-row { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--mist); cursor: pointer; }
+    .check-row input[type=checkbox] { accent-color: var(--cmd); }
+    .err-box { background: #1a0505; border: 0.5px solid #A32D2D; border-radius: 4px; padding: 8px 12px; font-size: 11px; color: var(--threat); margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+    .notice { margin-top: 1rem; background: var(--abyss); border: 0.5px solid var(--slate); border-radius: 4px; padding: 8px 12px; font-size: 10px; color: var(--ash); line-height: 1.6; }
+    select { background: var(--bg-input); border: 0.5px solid var(--cmd); border-radius: var(--radius-md); height: 38px; color: var(--frost); font-family: var(--font); font-size: 12px; padding: 0 12px; width: 100%; outline: none; }
+    select:focus { border-color: var(--signal); }
+    /* Mobile: only show right panel */
+    @media (max-width: 640px) {
+      .login-wrap { grid-template-columns: 1fr !important; }
+      .left { display: none !important; }
+      .right { padding: 2rem 1.25rem; justify-content: flex-start; padding-top: 3rem; }
+    }
+    @media (max-width: 400px) {
+      .right { padding: 1.5rem 1rem; }
+      .brand-name-lg { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <!-- Left panel — shown on desktop only -->
+    <div class="left">
+      <div>
+        <div class="brand-row" style="margin-bottom: 2rem;">
+          <div class="brand-icon-lg"><i class="ti ti-lock" aria-hidden="true"></i></div>
+          <div>
+            <div class="brand-name-lg">ARCANUM</div>
+            <div class="brand-tag">SECURE COMM PLATFORM</div>
+          </div>
+        </div>
+        <hr class="divider" style="margin-bottom: 1.5rem;">
+        <div class="stat-block">
+          <div class="stat-row-login"><span class="status-dot dot-green"></span><span class="label">Server status</span><span class="val">ONLINE</span></div>
+          <div class="stat-row-login"><span class="status-dot dot-green"></span><span class="label">Active channels</span><span class="val" id="l-channels">—</span></div>
+          <div class="stat-row-login"><span class="status-dot dot-green"></span><span class="label">Operators registered</span><span class="val" id="l-operators">—</span></div>
+          <div class="stat-row-login"><span class="status-dot dot-amber"></span><span class="label">Pending sitrep</span><span class="val" id="l-sitrep">—</span></div>
+          <div class="stat-row-login"><span class="status-dot dot-green"></span><span class="label">Encryption</span><span class="val">AES-256</span></div>
+        </div>
+        <hr class="divider" style="margin: 1.5rem 0;">
+        <div style="margin-bottom: 8px; font-size: 10px; color: var(--signal); letter-spacing: 0.06em;">CLASSIFICATION LEVEL</div>
+        <div class="class-box"><i class="ti ti-shield-lock" style="font-size: 13px;" aria-hidden="true"></i> TOP SECRET // ARCANUM</div>
+      </div>
+      <div class="footer-warn">
+        AUTHORIZED PERSONNEL ONLY<br>
+        UNAUTHORIZED ACCESS IS PROHIBITED<br>
+        ALL SESSIONS ARE MONITORED AND LOGGED
+      </div>
+    </div>
+
+    <!-- Right panel — login form -->
+    <div class="right">
+      <!-- Mobile-only brand header -->
+      <div class="brand-row" style="margin-bottom: 1.5rem; display: none;" id="mobile-brand">
+        <div class="brand-icon-lg"><i class="ti ti-lock" aria-hidden="true"></i></div>
+        <div>
+          <div class="brand-name-lg">ARCANUM</div>
+          <div class="brand-tag">SECURE COMM PLATFORM</div>
+        </div>
+      </div>
+
+      <div class="login-title">Operator authentication</div>
+      <div class="login-sub">// ENTER CREDENTIALS TO PROCEED</div>
+
+      <div id="err-box" class="err-box" style="display:none;">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <span>Invalid credentials. Access denied.</span>
+      </div>
+
+      <form action="/login" method="POST">
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-id-badge" aria-hidden="true"></i> Operator ID</div>
+          <div class="input-box">
+            <i class="ti ti-user icon" aria-hidden="true"></i>
+            <input type="text" name="operatorId" placeholder="OPS-XXXXXXX" required autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-lock" aria-hidden="true"></i> Passphrase</div>
+          <div class="input-box">
+            <i class="ti ti-lock icon" aria-hidden="true"></i>
+            <input type="password" name="passphrase" placeholder="••••••••••••" required id="pass-input" autocomplete="current-password">
+            <i class="ti ti-eye icon muted" style="cursor:pointer;" id="eye-toggle" aria-hidden="true"></i>
+          </div>
+        </div>
+        <div class="opt-row">
+          <label class="check-row"><input type="checkbox" name="remember"> Keep session secure</label>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-bottom: 8px; height: 40px;">
+          <i class="ti ti-arrow-right" aria-hidden="true"></i> AUTHENTICATE
+        </button>
+      </form>
+
+      <div class="notice">
+        WARNING: This system is for authorized ARCANUM personnel only.<br>
+        Session activity is encrypted, logged, and monitored.
+      </div>
+      <div style="text-align:center;margin-top:12px;font-size:10px;color:var(--ash);">
+        Punya kode undangan? <a href="/register" style="color:var(--signal);">Daftar di sini</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (location.search.includes('error=invalid')) {
+      document.getElementById('err-box').style.display = 'flex';
+    }
+    document.getElementById('eye-toggle').addEventListener('click', () => {
+      const inp = document.getElementById('pass-input');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    // Show mobile brand on small screens
+    if (window.innerWidth <= 640) {
+      document.getElementById('mobile-brand').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>
