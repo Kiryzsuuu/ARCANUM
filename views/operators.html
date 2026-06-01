@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="/css/arcanum.css">
   <link rel="stylesheet" href="/css/themes.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="/css/leaflet.css">
+  <script src="/js/leaflet.js"></script>
   <style>
     .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
     .page-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px; }
@@ -81,6 +81,7 @@
         <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin" aria-hidden="true"></i></a>
         <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report" aria-hidden="true"></i></a>
         <a href="/operators" class="nav-btn active" title="Operators"><i class="ti ti-users" aria-hidden="true"></i></a>
+        <a href="/logs"        class="nav-btn" title="Activity Log"><i class="ti ti-list-details"></i></a>
         <div class="nav-sep"></div>
         <a href="/logout"    class="nav-btn" title="Logout"><i class="ti ti-logout" aria-hidden="true"></i></a>
       </nav>
@@ -284,7 +285,7 @@
 
   <!-- Map Picker Modal -->
   <div id="map-picker-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);align-items:center;justify-content:center;padding:12px;">
-    <div style="background:var(--bg-panel);border:.5px solid var(--border);border-radius:10px;width:100%;max-width:720px;display:flex;flex-direction:column;overflow:hidden;max-height:90vh;">
+    <div style="background:var(--bg-panel);border:.5px solid var(--border);border-radius:10px;width:100%;max-width:720px;display:flex;flex-direction:column;overflow:hidden;">
       <div style="padding:12px 16px;border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
         <div>
           <div style="font-size:13px;font-weight:bold;color:var(--frost);">PILIH LOKASI DI PETA</div>
@@ -292,7 +293,15 @@
         </div>
         <button class="btn btn-ghost btn-sm" onclick="closeMapPicker()"><i class="ti ti-x"></i></button>
       </div>
-      <div id="unit-map-picker" style="flex:1;height:420px;"></div>
+      <!-- Map style switcher -->
+      <div style="padding:6px 16px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-size:9px;color:var(--ash);letter-spacing:.06em;text-transform:uppercase;margin-right:4px;">Layer</span>
+        <button class="picker-tile-btn active" id="ptile-taktis" onclick="setPickerTile('taktis')" style="padding:2px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:var(--deep);color:var(--signal);font-family:monospace;letter-spacing:.04em;">TAKTIS</button>
+        <button class="picker-tile-btn" id="ptile-satelit" onclick="setPickerTile('satelit')" style="padding:2px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);font-family:monospace;letter-spacing:.04em;">SAT</button>
+        <button class="picker-tile-btn" id="ptile-maps" onclick="setPickerTile('maps')" style="padding:2px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);font-family:monospace;letter-spacing:.04em;">MAPS</button>
+        <button class="picker-tile-btn" id="ptile-putih" onclick="setPickerTile('putih')" style="padding:2px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);font-family:monospace;letter-spacing:.04em;">PUTIH</button>
+      </div>
+      <div id="unit-map-picker" style="width:100%;height:400px;min-height:400px;"></div>
       <div style="padding:10px 16px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;">
         <i class="ti ti-map-pin" style="color:var(--signal);"></i>
         <span style="font-size:11px;color:var(--mist);flex:1;" id="picker-coords">Klik peta untuk memilih koordinat</span>
@@ -444,6 +453,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script src="/js/arcanum.js"></script>
   <script>
     let allOperators = [];
@@ -862,42 +872,70 @@
     document.head.appendChild(style);
 
     // ── MAP PICKER ──────────────────────────────────────────────
-    let mapPicker   = null;
-    let pickerMarker= null;
-    let pickedLatLng= null;
+    let mapPicker        = null;
+    let pickerMarker     = null;
+    let pickedLatLng     = null;
+    let pickerTileLayers  = null;
+    let activePickerTile  = null;
+    const pickerUnitMarkers = {};     // unitId  -> L.Marker
+    const pickerOpMarkers   = {};     // opId    -> L.Marker
+    let   pickerSocket      = null;
+
+    function setPickerTile(name) {
+      if (!pickerTileLayers || !mapPicker) return;
+      mapPicker.removeLayer(activePickerTile);
+      activePickerTile = pickerTileLayers[name];
+      activePickerTile.addTo(mapPicker);
+      document.querySelectorAll('.picker-tile-btn').forEach(b => {
+        b.style.background = 'transparent';
+        b.style.color = 'var(--ash)';
+      });
+      const btn = document.getElementById('ptile-' + name);
+      if (btn) { btn.style.background = 'var(--deep)'; btn.style.color = 'var(--signal)'; }
+    }
 
     function openMapPicker() {
       const modal = document.getElementById('map-picker-modal');
       modal.style.display = 'flex';
 
-      // Init map jika belum ada
-      if (!mapPicker) {
-        // Cari posisi awal dari lat/lng yang sudah diisi atau default Jakarta
-        const initLat = parseFloat(document.getElementById('u-lat').value) || -6.200;
-        const initLng = parseFloat(document.getElementById('u-lng').value) || 106.816;
+      // Tunggu DOM render sepenuhnya sebelum init/resize peta
+      setTimeout(() => {
+        if (!mapPicker) {
+          const initLat = parseFloat(document.getElementById('u-lat').value) || -6.200;
+          const initLng = parseFloat(document.getElementById('u-lng').value) || 106.816;
 
-        mapPicker = L.map('unit-map-picker', { center: [initLat, initLng], zoom: 12 });
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19
-        }).addTo(mapPicker);
+          pickerTileLayers = {
+            taktis: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19 }),
+            satelit: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri', maxZoom: 19 }),
+            maps: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', subdomains: 'abc', maxZoom: 19 }),
+            putih: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19 }),
+          };
+          activePickerTile = pickerTileLayers.taktis;
 
-        // Klik peta → taruh/pindah marker
-        mapPicker.on('click', (e) => {
-          pickedLatLng = e.latlng;
-          if (pickerMarker) {
-            pickerMarker.setLatLng(e.latlng);
-          } else {
-            pickerMarker = L.marker(e.latlng, { draggable: true }).addTo(mapPicker);
-            pickerMarker.on('dragend', ev => {
-              pickedLatLng = ev.target.getLatLng();
-              updatePickerCoords();
-            });
-          }
-          updatePickerCoords();
-        });
-      } else {
+          mapPicker = L.map('unit-map-picker', { center: [initLat, initLng], zoom: 12 });
+          activePickerTile.addTo(mapPicker);
+
+          mapPicker.on('click', (e) => {
+            pickedLatLng = e.latlng;
+            if (pickerMarker) {
+              pickerMarker.setLatLng(e.latlng);
+            } else {
+              pickerMarker = L.marker(e.latlng, { draggable: true }).addTo(mapPicker);
+              pickerMarker.on('dragend', ev => {
+                pickedLatLng = ev.target.getLatLng();
+                updatePickerCoords();
+              });
+            }
+            updatePickerCoords();
+          });
+        }
+
+        // Selalu invalidateSize setiap buka
         mapPicker.invalidateSize();
-      }
+
+        // Load unit & operator yang sudah ada
+        _loadPickerMarkers();
+      }, 200);
 
       // Kalau sudah ada koordinat, tampilkan marker di sana
       const lat = parseFloat(document.getElementById('u-lat').value);
@@ -911,6 +949,61 @@
         }
         mapPicker.setView(pickedLatLng, 14);
         updatePickerCoords();
+      }
+
+      // Socket realtime — update posisi operator di picker
+      if (!pickerSocket) {
+        pickerSocket = io();
+        pickerSocket.on('operator-position', p => _upsertPickerOpMarker(p));
+        pickerSocket.on('operator-offline',  ({ id }) => { if (pickerOpMarkers[id]) { pickerOpMarkers[id].remove(); delete pickerOpMarkers[id]; } });
+        pickerSocket.on('unit-moved', u => _upsertPickerUnitMarker(u));
+      }
+    }
+
+    async function _loadPickerMarkers() {
+      if (!mapPicker) return;
+      // Load units
+      try {
+        const units = await fetch('/api/units').then(r => r.json());
+        units.forEach(u => { if (u.lat && u.lng) _upsertPickerUnitMarker(u); });
+      } catch(_) {}
+      // Load operators online
+      try {
+        const ops = await fetch('/api/positions').then(r => r.json());
+        ops.forEach(p => _upsertPickerOpMarker(p));
+      } catch(_) {}
+    }
+
+    function _upsertPickerUnitMarker(u) {
+      if (!mapPicker || !u.lat || !u.lng) return;
+      const id  = u.unit || u.unitId || u.id;
+      const clr = { nominal:'#639922', monitoring:'#EF9F27', threat:'#E24B4A' }[u.status] || '#639922';
+      const icon = L.divIcon({
+        html: `<div style="width:10px;height:10px;border-radius:50%;background:${clr};border:2px solid rgba(255,255,255,.4);"></div>`,
+        className: '', iconSize: [10,10], iconAnchor: [5,5]
+      });
+      if (pickerUnitMarkers[id]) {
+        pickerUnitMarkers[id].setLatLng([u.lat, u.lng]);
+      } else {
+        pickerUnitMarkers[id] = L.marker([u.lat, u.lng], { icon })
+          .bindTooltip(`<b>${u.name||id}</b><br>Unit`, { direction:'top', opacity:.9 })
+          .addTo(mapPicker);
+      }
+    }
+
+    function _upsertPickerOpMarker(p) {
+      if (!mapPicker || !p.lat || !p.lng) return;
+      const clr = { SA:'#378ADD',ADMIN:'#378ADD',CMD:'#378ADD',OPS:'#639922',RECON:'#EF9F27',INTEL:'#85B7EB',LOG:'#666',CHIEF:'#378ADD' }[p.role] || '#639922';
+      const icon = L.divIcon({
+        html: `<div style="width:10px;height:10px;border-radius:50%;background:${clr};border:2px solid rgba(255,255,255,.6);box-shadow:0 0 6px ${clr};"></div>`,
+        className: '', iconSize: [10,10], iconAnchor: [5,5]
+      });
+      if (pickerOpMarkers[p.id]) {
+        pickerOpMarkers[p.id].setLatLng([p.lat, p.lng]);
+      } else {
+        pickerOpMarkers[p.id] = L.marker([p.lat, p.lng], { icon })
+          .bindTooltip(`<b>${p.name}</b><br>${p.role} · ${p.city||''}`, { direction:'top', opacity:.9 })
+          .addTo(mapPicker);
       }
     }
 

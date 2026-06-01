@@ -353,39 +353,99 @@ async function initTopbar(pathLabel) {
 }
 
 // ══════════════════════════════════════════════
-//  POSITION REFRESH (every 5 minutes, GPS-first)
+//  POSITION — live watchPosition + IP fallback
 // ══════════════════════════════════════════════
+let _gpsWatcher    = null;
+let _gpsDenied     = false;
+let _lastLat       = null;
+let _lastLng       = null;
+const _MIN_DIST_M  = 30;   // hanya push kalau bergerak > 30 meter
+const _MIN_INTERVAL= 15000; // minimum jeda antar push (ms)
+let _lastPushTime  = 0;
+
 function startPositionRefresh() {
-  pushPosition();
-  setInterval(pushPosition, 5 * 60 * 1000);
+  if (!navigator.geolocation) {
+    pushIPPosition();
+    // fallback polling tiap 5 menit via IP
+    setInterval(pushIPPosition, 5 * 60 * 1000);
+    return;
+  }
+  // Push sekali langsung, lalu mulai watch
+  requestGPS();
+  _startWatch();
 }
 
-function pushPosition() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        // Precise GPS from browser — send coords directly
-        fetch('/api/position', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lat:      pos.coords.latitude,
-            lng:      pos.coords.longitude,
-            accuracy: pos.coords.accuracy   // in metres
-          })
-        }).catch(() => {});
-      },
-      () => {
-        // User denied GPS — fall back to IP geolocation on server
-        fetch('/api/position', { method: 'POST' }).catch(() => {});
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
-  } else {
-    // Browser doesn't support geolocation — IP fallback
-    fetch('/api/position', { method: 'POST' }).catch(() => {});
-  }
+function _startWatch() {
+  if (_gpsWatcher !== null) return; // sudah berjalan
+  _gpsWatcher = navigator.geolocation.watchPosition(
+    (pos) => {
+      _gpsDenied = false;
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      const now = Date.now();
+
+      // Throttle: abaikan jika terlalu cepat DAN tidak bergerak cukup jauh
+      const movedFar = _lastLat === null || _haversine(_lastLat, _lastLng, lat, lng) >= _MIN_DIST_M;
+      const enoughTime = (now - _lastPushTime) >= _MIN_INTERVAL;
+
+      if (movedFar || enoughTime) {
+        _lastLat = lat; _lastLng = lng; _lastPushTime = now;
+        pushGPSPosition(lat, lng, accuracy);
+      }
+    },
+    (err) => {
+      if (err.code === 1) {
+        // GPS ditolak — stop watch, fallback ke IP polling
+        _gpsDenied = true;
+        navigator.geolocation.clearWatch(_gpsWatcher);
+        _gpsWatcher = null;
+        pushIPPosition();
+        setInterval(pushIPPosition, 5 * 60 * 1000);
+      }
+      // Error lain (timeout, unavailable) — watchPosition retry otomatis
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+  );
 }
+
+// Hitung jarak dua titik GPS dalam meter (Haversine)
+function _haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function requestGPS() {
+  if (!navigator.geolocation || _gpsDenied) {
+    pushIPPosition();
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      _gpsDenied = false;
+      pushGPSPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+    },
+    () => pushIPPosition(),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 5000 }
+  );
+}
+
+function pushGPSPosition(lat, lng, accuracy) {
+  fetch('/api/position', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat, lng, accuracy })
+  }).catch(() => {});
+}
+
+function pushIPPosition() {
+  fetch('/api/position', { method: 'POST' }).catch(() => {});
+}
+
+// Alias untuk backward compat
+function pushPosition() { requestGPS(); }
 
 // ══════════════════════════════════════════════
 //  SHARED HELPERS

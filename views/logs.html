@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCANUM — Activity Log</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .page-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px; }
+    .ph-title { font-size:14px; font-weight:bold; color:var(--frost); letter-spacing:.06em; }
+    .ph-sub   { font-size:10px; color:var(--signal); margin-top:2px; }
+
+    /* Stats */
+    .stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:12px 16px; flex-shrink:0; }
+    .stat-card { background:var(--bg-panel); border:.5px solid var(--border); border-radius:6px; padding:10px 12px; }
+    .stat-num  { font-size:22px; font-weight:bold; color:var(--frost); }
+    .stat-lbl  { font-size:9px; color:var(--signal); margin-top:2px; letter-spacing:.04em; }
+
+    /* Filter bar */
+    .filter-bar { background:var(--bg-panel); border-bottom:.5px solid var(--border); padding:8px 16px; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+    .filter-pill { font-size:10px; padding:3px 10px; border-radius:99px; border:.5px solid var(--border); color:var(--ash); cursor:pointer; background:transparent; font-family:var(--font); white-space:nowrap; }
+    .filter-pill.active { background:var(--steel); color:var(--mist); border-color:var(--cmd); }
+    .filter-pill.warn   { background:#1a0e04; color:var(--siaga); border-color:#854F0B; }
+    .filter-pill.crit   { background:#1a0505; color:var(--threat); border-color:#A32D2D; }
+    .search-box { background:var(--bg-input); border:.5px solid var(--border); border-radius:4px; height:28px; display:flex; align-items:center; gap:6px; padding:0 8px; flex:1; min-width:160px; max-width:280px; }
+    .search-box input { background:transparent; border:none; outline:none; color:var(--frost); font-family:var(--font); font-size:11px; flex:1; }
+    .date-range { display:flex; align-items:center; gap:4px; }
+    .date-range input { background:var(--bg-input); border:.5px solid var(--border); border-radius:4px; height:28px; color:var(--mist); font-family:var(--font); font-size:10px; padding:0 8px; outline:none; width:140px; }
+    .date-range input:focus { border-color:var(--signal); }
+
+    /* Log content */
+    .log-content { flex:1; display:flex; overflow:hidden; }
+    .log-list { flex:1; overflow-y:auto; }
+    .log-entry { display:flex; gap:10px; padding:8px 16px; border-bottom:.5px solid rgba(12,68,124,.15); cursor:pointer; transition:background .1s; align-items:flex-start; }
+    .log-entry:hover { background:rgba(12,31,56,.4); }
+    .log-entry.warning { border-left:2px solid var(--siaga); }
+    .log-entry.critical { border-left:2px solid var(--threat); background:rgba(26,5,5,.3); }
+    .log-entry.new-entry { animation: highlight-in .6s ease-out; }
+    @keyframes highlight-in { from { background:rgba(55,138,221,.2); } to { background:transparent; } }
+
+    .le-time   { font-size:9px; color:var(--ash); font-family:var(--font); white-space:nowrap; flex-shrink:0; width:68px; margin-top:2px; }
+    .le-icon   { font-size:14px; flex-shrink:0; margin-top:1px; width:18px; }
+    .le-badge  { font-size:8px; padding:2px 6px; border-radius:3px; white-space:nowrap; flex-shrink:0; margin-top:3px; font-weight:bold; letter-spacing:.04em; }
+    .le-badge.info     { background:var(--deep); color:var(--mist); border:.5px solid var(--cmd); }
+    .le-badge.warning  { background:#1a0e04; color:var(--siaga); border:.5px solid #854F0B; }
+    .le-badge.critical { background:#1a0505; color:var(--threat); border:.5px solid #A32D2D; }
+    .le-actor  { font-size:10px; color:var(--signal); font-weight:bold; white-space:nowrap; flex-shrink:0; width:80px; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+    .le-type   { font-size:9px; color:var(--ash); white-space:nowrap; flex-shrink:0; width:110px; overflow:hidden; text-overflow:ellipsis; margin-top:3px; font-family:var(--font); }
+    .le-action { font-size:11px; color:var(--mist); flex:1; min-width:0; margin-top:1px; }
+    .le-ip     { font-size:9px; color:var(--ash); white-space:nowrap; flex-shrink:0; margin-top:3px; font-family:var(--font); }
+
+    /* Detail panel */
+    .detail-panel { width:300px; background:var(--bg-panel); border-left:.5px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; flex-shrink:0; }
+    .dp-header { padding:10px 12px; border-bottom:.5px solid var(--border); font-size:10px; font-weight:bold; color:var(--mist); letter-spacing:.06em; }
+    .dp-empty  { padding:20px; text-align:center; color:var(--ash); font-size:11px; }
+    .dp-body   { padding:12px; display:flex; flex-direction:column; gap:8px; }
+    .dp-field  { display:flex; flex-direction:column; gap:2px; }
+    .dp-key    { font-size:9px; color:var(--cmd); text-transform:uppercase; letter-spacing:.06em; }
+    .dp-val    { font-size:11px; color:var(--mist); word-break:break-all; }
+    .dp-json   { background:var(--abyss); border:.5px solid var(--border); border-radius:4px; padding:8px; font-size:9px; color:var(--ops); font-family:var(--font); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto; }
+
+    /* Status bar */
+    .log-statusbar { background:var(--bg-topbar); border-top:.5px solid var(--border); padding:5px 16px; display:flex; align-items:center; gap:16px; flex-shrink:0; flex-wrap:wrap; }
+    .lsb-item { font-size:9px; color:var(--cmd); display:flex; align-items:center; gap:5px; }
+    .live-badge { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--ops); }
+
+    /* Empty/loading */
+    .log-empty { padding:40px; text-align:center; color:var(--ash); font-size:12px; }
+
+    @media (max-width:900px) { .stats-row { grid-template-columns:repeat(3,1fr); } .detail-panel { display:none; } }
+    @media (max-width:640px) { .stats-row { grid-template-columns:1fr 1fr; } .le-type,.le-ip { display:none; } .le-actor { width:60px; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand"><div class="tb-icon"><i class="ti ti-lock"></i></div><span class="tb-name">ARCANUM</span></div>
+        <div class="tb-sep"></div>
+        <span class="tb-path">ACTIVITY LOG // AUDIT TRAIL</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> ENC: ACTIVE</div>
+        <div class="tb-item"><i class="ti ti-clock"></i><span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages"></i></a>
+        <a href="/dm"        class="nav-btn" title="DM"><i class="ti ti-message-2"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users"></i></a>
+        <a href="/logs"      class="nav-btn active" title="Logs"><i class="ti ti-list-details"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout"    class="nav-btn" title="Logout"><i class="ti ti-logout"></i></a>
+      </nav>
+
+      <div class="main">
+        <div class="page-header">
+          <div>
+            <div class="ph-title">ACTIVITY LOG</div>
+            <div class="ph-sub">// AUDIT TRAIL — SEMUA AKTIVITAS SISTEM TERCATAT</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost btn-sm" onclick="exportCSV()"><i class="ti ti-download"></i> Export CSV</button>
+            <button class="btn btn-ghost btn-sm" id="auto-scroll-btn" onclick="toggleAutoScroll()" title="Auto scroll to new">
+              <i class="ti ti-player-skip-forward"></i> Live
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="loadLogs()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-num" id="st-total">—</div><div class="stat-lbl">Total events</div></div>
+          <div class="stat-card"><div class="stat-num text-signal" id="st-today">—</div><div class="stat-lbl">Hari ini</div></div>
+          <div class="stat-card"><div class="stat-num text-siaga" id="st-warn">—</div><div class="stat-lbl">Warning</div></div>
+          <div class="stat-card"><div class="stat-num text-threat" id="st-crit">—</div><div class="stat-lbl">Critical</div></div>
+          <div class="stat-card"><div class="stat-num text-threat" id="st-fail">—</div><div class="stat-lbl">Auth gagal</div></div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <i class="ti ti-search" style="font-size:11px;color:var(--ash);"></i>
+            <input type="text" id="search-actor" placeholder="Cari actor / aksi..." oninput="debounceLoad()">
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="filter-pill active" data-type="all"      onclick="setType('all',this)">Semua</button>
+            <button class="filter-pill" data-type="AUTH_LOGIN"      onclick="setType('AUTH_LOGIN',this)">Login</button>
+            <button class="filter-pill" data-type="AUTH_FAIL"       onclick="setType('AUTH_FAIL',this)">Auth Gagal</button>
+            <button class="filter-pill" data-type="OPERATOR_CREATE" onclick="setType('OPERATOR_CREATE',this)">Buat Akun</button>
+            <button class="filter-pill" data-type="OPERATOR_UPDATE" onclick="setType('OPERATOR_UPDATE',this)">Edit Akun</button>
+            <button class="filter-pill" data-type="SITREP_CREATE"   onclick="setType('SITREP_CREATE',this)">Sitrep</button>
+            <button class="filter-pill" data-type="CHANNEL_MSG"     onclick="setType('CHANNEL_MSG',this)">Channel</button>
+            <button class="filter-pill" data-type="DM_MSG"          onclick="setType('DM_MSG',this)">DM</button>
+            <button class="filter-pill" data-type="UNIT_CREATE"     onclick="setType('UNIT_CREATE',this)">Units</button>
+            <button class="filter-pill" data-type="POSITION_UPDATE" onclick="setType('POSITION_UPDATE',this)">Posisi</button>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:auto;">
+            <button class="filter-pill" data-sev="all"      onclick="setSev('all',this)">All Sev</button>
+            <button class="filter-pill warn" data-sev="warning"  onclick="setSev('warning',this)">Warning</button>
+            <button class="filter-pill crit" data-sev="critical" onclick="setSev('critical',this)">Critical</button>
+          </div>
+          <div class="date-range">
+            <input type="date" id="filter-from" onchange="loadLogs()" title="Dari tanggal">
+            <span style="font-size:10px;color:var(--ash);">—</span>
+            <input type="date" id="filter-to"   onchange="loadLogs()" title="Sampai tanggal">
+          </div>
+        </div>
+
+        <div class="log-content">
+          <!-- Log list -->
+          <div class="log-list" id="log-list">
+            <div class="log-empty">Loading logs...</div>
+          </div>
+
+          <!-- Detail panel -->
+          <div class="detail-panel">
+            <div class="dp-header">DETAIL EVENT</div>
+            <div id="dp-content"><div class="dp-empty">Klik entry untuk melihat detail</div></div>
+          </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="log-statusbar">
+          <div class="lsb-item"><i class="ti ti-database"></i> <span id="lsb-count">0 entries</span></div>
+          <div class="lsb-item"><i class="ti ti-clock"></i> Retensi: 90 hari</div>
+          <div class="live-badge ml-auto" id="live-indicator">
+            <span class="live-dot"></span> LIVE — realtime aktif
+          </div>
+          <div class="lsb-item"><i class="ti ti-refresh"></i> <span id="lsb-refresh">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"><i class="ti ti-messages"></i><span>COMMS</span></a>
+      <a href="/grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+      <a href="/logs" class="active"><i class="ti ti-list-details"></i><span>LOG</span></a>
+    </nav>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/arcanum.js"></script>
+  <script>
+  // ══════════════════════════════════════════════
+  //  CONFIG
+  // ══════════════════════════════════════════════
+  const TYPE_ICONS = {
+    AUTH_LOGIN:         { icon:'ti-login',          color:'var(--ops)' },
+    AUTH_LOGOUT:        { icon:'ti-logout',          color:'var(--ash)' },
+    AUTH_FAIL:          { icon:'ti-alert-circle',    color:'var(--threat)' },
+    AUTH_REGISTER:      { icon:'ti-user-plus',       color:'var(--signal)' },
+    OPERATOR_CREATE:    { icon:'ti-user-plus',       color:'var(--signal)' },
+    OPERATOR_UPDATE:    { icon:'ti-user-edit',       color:'var(--siaga)' },
+    OPERATOR_DEACTIVATE:{ icon:'ti-user-off',        color:'var(--threat)' },
+    OPERATOR_ACTIVATE:  { icon:'ti-user-check',      color:'var(--ops)' },
+    PROFILE_UPDATE:     { icon:'ti-id-badge',        color:'var(--mist)' },
+    SITREP_CREATE:      { icon:'ti-file-plus',       color:'var(--signal)' },
+    SITREP_UPDATE:      { icon:'ti-file-check',      color:'var(--ops)' },
+    CHANNEL_MSG:        { icon:'ti-message',         color:'var(--mist)' },
+    DM_MSG:             { icon:'ti-message-2',       color:'var(--mist)' },
+    DM_FILE:            { icon:'ti-file-upload',     color:'var(--siaga)' },
+    UNIT_CREATE:        { icon:'ti-map-pin-plus',    color:'var(--ops)' },
+    UNIT_UPDATE:        { icon:'ti-map-pin',         color:'var(--siaga)' },
+    UNIT_DELETE:        { icon:'ti-map-pin-off',     color:'var(--threat)' },
+    INVITE_CREATE:      { icon:'ti-ticket',          color:'var(--signal)' },
+    INVITE_USE:         { icon:'ti-ticket-off',      color:'var(--ops)' },
+    INVITE_DELETE:      { icon:'ti-trash',           color:'var(--ash)' },
+    POSITION_UPDATE:    { icon:'ti-location',        color:'var(--mist)' },
+    SYSTEM:             { icon:'ti-server',          color:'var(--ash)' },
+  };
+
+  let currentType = 'all';
+  let currentSev  = 'all';
+  let autoScroll  = true;
+  let allLogs     = [];
+  let debTimer    = null;
+  let currentPage = 0;
+  const PAGE_SIZE = 150;
+
+  // ══════════════════════════════════════════════
+  //  INIT
+  // ══════════════════════════════════════════════
+  async function init() {
+    await initTopbar('ACTIVITY LOG');
+    await loadStats();
+    await loadLogs();
+
+    // Socket — realtime new log entries
+    const socket = io();
+    socket.on('new-log', (entry) => {
+      prependLogEntry(entry, true);
+      loadStats();
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  //  LOAD STATS
+  // ══════════════════════════════════════════════
+  async function loadStats() {
+    const s = await api('/api/logs/stats');
+    document.getElementById('st-total').textContent = fmtNum(s.total);
+    document.getElementById('st-today').textContent = fmtNum(s.todayCount);
+    document.getElementById('st-warn').textContent  = fmtNum(s.warnings);
+    document.getElementById('st-crit').textContent  = fmtNum(s.criticals);
+    document.getElementById('st-fail').textContent  = fmtNum(s.authFails);
+  }
+
+  // ══════════════════════════════════════════════
+  //  LOAD LOGS
+  // ══════════════════════════════════════════════
+  async function loadLogs(append = false) {
+    if (!append) currentPage = 0;
+    const actor  = document.getElementById('search-actor').value.trim();
+    const from   = document.getElementById('filter-from').value;
+    const to     = document.getElementById('filter-to').value;
+
+    const params = new URLSearchParams({
+      limit: PAGE_SIZE,
+      page:  currentPage,
+      ...(currentType !== 'all' && { type: currentType }),
+      ...(currentSev  !== 'all' && { severity: currentSev }),
+      ...(actor && { actor }),
+      ...(from  && { from }),
+      ...(to    && { to: to + 'T23:59:59' })
+    });
+
+    const data = await api('/api/logs?' + params);
+    if (!append) allLogs = data.logs || [];
+    else allLogs = [...allLogs, ...(data.logs || [])];
+
+    renderLogs(append);
+    document.getElementById('lsb-count').textContent = `${data.total || 0} entries (tampil ${allLogs.length})`;
+    document.getElementById('lsb-refresh').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  }
+
+  // ══════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════
+  function renderLogs(append = false) {
+    const list = document.getElementById('log-list');
+    if (!allLogs.length) {
+      list.innerHTML = '<div class="log-empty"><i class="ti ti-database-off" style="font-size:28px;display:block;margin:0 auto 8px;"></i>Tidak ada log yang cocok dengan filter ini</div>';
+      return;
+    }
+    const html = allLogs.map(l => buildEntryHTML(l)).join('');
+    if (append) list.innerHTML += html;
+    else list.innerHTML = html;
+  }
+
+  function buildEntryHTML(l) {
+    const cfg  = TYPE_ICONS[l.type] || { icon:'ti-info-circle', color:'var(--ash)' };
+    const time = new Date(l.createdAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+    const date = new Date(l.createdAt).toLocaleDateString('id-ID', { day:'2-digit', month:'short' });
+    return `<div class="log-entry ${l.severity}" data-id="${l._id}" onclick="showDetail('${l._id}')">
+      <div class="le-time">${date}<br>${time}</div>
+      <i class="ti ${cfg.icon} le-icon" style="color:${cfg.color};"></i>
+      <span class="le-badge ${l.severity}">${l.severity.toUpperCase()}</span>
+      <span class="le-actor" title="${l.actor}">${l.actorName || l.actor || 'SYSTEM'}</span>
+      <span class="le-type">${l.type}</span>
+      <span class="le-action">${escH(l.action)}</span>
+      <span class="le-ip">${l.ip ? l.ip.slice(0,15) : ''}</span>
+    </div>`;
+  }
+
+  function prependLogEntry(l, isNew = false) {
+    allLogs.unshift(l);
+    const list = document.getElementById('log-list');
+    const div  = document.createElement('div');
+    div.innerHTML = buildEntryHTML(l);
+    const entry = div.firstChild;
+    if (isNew) entry.classList.add('new-entry');
+    list.insertBefore(entry, list.firstChild);
+    entry.onclick = () => showDetail(l._id);
+    if (autoScroll) list.scrollTop = 0;
+  }
+
+  // ══════════════════════════════════════════════
+  //  DETAIL PANEL
+  // ══════════════════════════════════════════════
+  function showDetail(id) {
+    const l = allLogs.find(x => String(x._id) === String(id));
+    if (!l) return;
+    document.querySelectorAll('.log-entry').forEach(el => el.style.background = '');
+    const entry = document.querySelector(`[data-id="${id}"]`);
+    if (entry) entry.style.background = 'rgba(55,138,221,.12)';
+
+    const cfg   = TYPE_ICONS[l.type] || { icon:'ti-info-circle', color:'var(--ash)' };
+    const fullTime = new Date(l.createdAt).toLocaleString('id-ID', { dateStyle:'long', timeStyle:'medium' });
+    const detailsStr = l.details ? JSON.stringify(l.details, null, 2) : null;
+
+    document.getElementById('dp-content').innerHTML = `
+      <div class="dp-body">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <i class="ti ${cfg.icon}" style="color:${cfg.color};font-size:18px;"></i>
+          <span class="le-badge ${l.severity}" style="font-size:10px;">${l.severity.toUpperCase()}</span>
+        </div>
+        <div class="dp-field"><span class="dp-key">Waktu</span><span class="dp-val">${fullTime}</span></div>
+        <div class="dp-field"><span class="dp-key">Event Type</span><span class="dp-val" style="color:${cfg.color};font-family:var(--font);letter-spacing:.04em;">${l.type}</span></div>
+        <div class="dp-field"><span class="dp-key">Actor</span><span class="dp-val"><strong style="color:var(--signal);">${l.actorName || '—'}</strong> (${l.actor || 'SYSTEM'})</span></div>
+        <div class="dp-field"><span class="dp-key">Aksi</span><span class="dp-val">${escH(l.action)}</span></div>
+        ${l.target ? `<div class="dp-field"><span class="dp-key">Target</span><span class="dp-val" style="font-family:var(--font);color:var(--ops);">${escH(l.target)}</span></div>` : ''}
+        ${l.ip ? `<div class="dp-field"><span class="dp-key">IP Address</span><span class="dp-val" style="font-family:var(--font);">${l.ip}</span></div>` : ''}
+        ${detailsStr ? `<div class="dp-field"><span class="dp-key">Detail Data</span><pre class="dp-json">${escH(detailsStr)}</pre></div>` : ''}
+      </div>`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  FILTERS
+  // ══════════════════════════════════════════════
+  function setType(type, el) {
+    currentType = type;
+    document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    loadLogs();
+  }
+
+  function setSev(sev, el) {
+    currentSev = sev;
+    document.querySelectorAll('[data-sev]').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    loadLogs();
+  }
+
+  function debounceLoad() {
+    clearTimeout(debTimer);
+    debTimer = setTimeout(() => loadLogs(), 400);
+  }
+
+  // ══════════════════════════════════════════════
+  //  LIVE / AUTO-SCROLL
+  // ══════════════════════════════════════════════
+  function toggleAutoScroll() {
+    autoScroll = !autoScroll;
+    const btn = document.getElementById('auto-scroll-btn');
+    btn.style.color = autoScroll ? 'var(--ops)' : '';
+    btn.style.borderColor = autoScroll ? 'var(--ops)' : '';
+  }
+
+  // Load more on scroll to bottom
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('log-list').addEventListener('scroll', function() {
+      if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) {
+        currentPage++;
+        loadLogs(true);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════
+  //  EXPORT CSV
+  // ══════════════════════════════════════════════
+  function exportCSV() {
+    const rows = [['Waktu','Severity','Actor','ActorName','Type','Aksi','Target','IP']];
+    allLogs.forEach(l => {
+      rows.push([
+        new Date(l.createdAt).toISOString(),
+        l.severity, l.actor, l.actorName, l.type,
+        '"' + (l.action||'').replace(/"/g,'""') + '"',
+        l.target||'', l.ip||''
+      ]);
+    });
+    const csv  = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `arcanum-log-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ══════════════════════════════════════════════
+  //  UTILS
+  // ══════════════════════════════════════════════
+  function escH(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fmtNum(n) {
+    return (n||0).toLocaleString('id-ID');
+  }
+
+  init();
+  </script>
+</body>
+</html>

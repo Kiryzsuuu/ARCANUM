@@ -7,14 +7,14 @@
   <link rel="stylesheet" href="/css/arcanum.css">
   <link rel="stylesheet" href="/css/themes.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <!-- Leaflet.js -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="/css/leaflet.css">
+  <script src="/js/leaflet.js"></script>
   <style>
     .map-area  { flex:1; display:flex; flex-direction:column; overflow:hidden; }
     .map-toolbar { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:8px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
     .layer-toggle { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--ash); padding:4px 8px; border:.5px solid var(--border); border-radius:4px; cursor:pointer; font-family:var(--font); user-select:none; }
     .layer-toggle.on { color:var(--signal); border-color:var(--cmd); background:var(--deep); }
+    .tile-btn.on { color:var(--signal) !important; border-color:var(--cmd) !important; background:var(--deep) !important; }
     .tool-btn  { width:28px; height:28px; border:.5px solid var(--border); border-radius:4px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:transparent; color:var(--ash); font-size:14px; }
     .tool-btn:hover, .tool-btn.active { color:var(--signal); background:var(--deep); border-color:var(--cmd); }
     .tool-sep  { width:.5px; height:20px; background:var(--border); margin:0 4px; }
@@ -103,6 +103,22 @@
 
       <div class="map-area">
         <!-- Toolbar -->
+        <!-- GPS Permission Banner -->
+        <div id="gps-banner" style="display:none;background:#0a1f0a;border-bottom:.5px solid #3B6D11;padding:8px 16px;display:none;align-items:center;gap:10px;flex-shrink:0;font-size:11px;color:var(--ops);">
+          <i class="ti ti-location" style="font-size:16px;"></i>
+          <span>Aktifkan lokasi agar posisi kamu muncul di peta</span>
+          <button class="btn btn-sm" style="background:#166b25;color:#b8f5c8;border:none;margin-left:4px;" onclick="requestGPSExplicit()">
+            <i class="ti ti-location-filled"></i> Izinkan Akses Lokasi
+          </button>
+          <button onclick="document.getElementById('gps-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--ash);cursor:pointer;font-size:14px;">×</button>
+        </div>
+        <!-- GPS Denied Banner -->
+        <div id="gps-denied-banner" style="display:none;background:#1a0e04;border-bottom:.5px solid #854F0B;padding:8px 16px;align-items:center;gap:10px;flex-shrink:0;font-size:11px;color:var(--siaga);">
+          <i class="ti ti-location-off" style="font-size:16px;"></i>
+          <span>GPS diblokir — menggunakan IP geolocation (akurasi kota). Untuk presisi lebih tinggi, izinkan lokasi di browser kamu.</span>
+          <button onclick="document.getElementById('gps-denied-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--ash);cursor:pointer;font-size:14px;">×</button>
+        </div>
+
         <div class="map-toolbar">
           <div class="tb-group" style="display:flex;gap:4px;">
             <div class="tool-btn active" id="btn-locate" title="Locate me" onclick="locateMe()"><i class="ti ti-location"></i></div>
@@ -119,7 +135,14 @@
           <div class="layer-toggle on" id="toggle-zones" onclick="this.classList.toggle('on');toggleLayer('zones')">
             <i class="ti ti-vector" style="font-size:12px;"></i> Zones
           </div>
-          <div class="coord-display" id="coord-display">
+          <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+            <span style="font-size:9px;color:var(--ash);letter-spacing:.06em;text-transform:uppercase;margin-right:2px;">Layer</span>
+            <div class="tile-btn on" id="tile-taktis" onclick="setTileLayer('taktis')" title="Taktis (gelap)" style="padding:3px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);user-select:none;letter-spacing:.04em;">TAKTIS</div>
+            <div class="tile-btn" id="tile-satelit" onclick="setTileLayer('satelit')" title="Satelit" style="padding:3px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);user-select:none;letter-spacing:.04em;">SAT</div>
+            <div class="tile-btn" id="tile-maps" onclick="setTileLayer('maps')" title="Street Maps" style="padding:3px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);user-select:none;letter-spacing:.04em;">MAPS</div>
+            <div class="tile-btn" id="tile-putih" onclick="setTileLayer('putih')" title="Putih" style="padding:3px 8px;font-size:9px;border:.5px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;color:var(--ash);user-select:none;letter-spacing:.04em;">PUTIH</div>
+          </div>
+          <div class="coord-display" id="coord-display" style="margin-left:8px;">
             <i class="ti ti-crosshair" style="font-size:10px;"></i> 0.000, 0.000
           </div>
         </div>
@@ -131,7 +154,7 @@
           <!-- Info panel -->
           <div class="info-panel">
             <div class="ip-header">
-              <span>LIVE POSITIONS</span>
+              <span>LIVE POSITIONS <span id="online-count" style="color:var(--signal);font-weight:normal;"></span></span>
               <a href="/operators#units" class="badge badge-info" style="text-decoration:none;cursor:pointer;" title="Kelola field units">
                 <i class="ti ti-settings" style="font-size:10px;"></i> Kelola
               </a>
@@ -205,6 +228,17 @@
   //  MAP INIT
   // ══════════════════════════════════════════════
   let map, currentUser;
+  let _tileLayers = null, _activeLayer = null;
+
+  function setTileLayer(name) {
+    if (!_tileLayers || !map) return;
+    map.removeLayer(_activeLayer);
+    _activeLayer = _tileLayers[name];
+    _activeLayer.addTo(map);
+    document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('on'));
+    const btn = document.getElementById('tile-' + name);
+    if (btn) btn.classList.add('on');
+  }
   const markers    = {};  // id -> L.Marker
   const layerGroups = {
     operators: L.layerGroup(),
@@ -215,18 +249,28 @@
   async function initMap() {
     currentUser = await initTopbar('GRID TAKTIS');
 
-    // Dark tile — CartoDB Dark Matter
-    const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org">OSM</a> &copy; <a href="https://carto.com">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19
-    });
+    // Tile layers (global untuk diakses dari onclick)
+    _tileLayers = {
+      taktis: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+      }),
+      satelit: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri &copy; NASA/USGS', maxZoom: 19
+      }),
+      maps: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', subdomains: 'abc', maxZoom: 19
+      }),
+      putih: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+      }),
+    };
+    _activeLayer = _tileLayers.taktis;
 
     map = L.map('leaflet-map', {
       center: [-2.5, 118.0],
       zoom: 5,
       zoomControl: false,
-      layers: [darkTile]
+      layers: [_activeLayer]
     });
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -249,11 +293,19 @@
 
     // Socket for realtime updates
     const socket = io();
-    socket.emit('register', currentUser.id);
+
+    // Register setiap kali connect/reconnect (termasuk setelah server restart)
+    socket.on('connect', () => {
+      socket.emit('register', currentUser.id);
+      // Push posisi ulang agar langsung tampil
+      requestGPS();
+    });
 
     socket.on('positions-init', (positions) => {
       positions.forEach(p => upsertOperatorMarker(p));
       updateSidebar();
+      // Jika kosong → minta posisi lagi (GPS belum selesai saat register)
+      if (!positions.length) scheduleRetry();
     });
 
     socket.on('operator-position', (pos) => {
@@ -274,6 +326,9 @@
     // Auto-refresh every 5 min
     setInterval(loadAllPositions, 5 * 60 * 1000);
     flashSync();
+
+    // Cek GPS permission status (setelah socket siap)
+    checkGPSPermission();
   }
 
   // ══════════════════════════════════════════════
@@ -319,8 +374,12 @@
         <div class="pop-name" style="color:${color};">${op.name}</div>
         <div class="pop-row"><span class="pop-key">Role</span><span class="pop-val">${op.role}</span></div>
         <div class="pop-row"><span class="pop-key">Clearance</span><span class="pop-val">LVL ${op.clearance}</span></div>
-        <div class="pop-row"><span class="pop-key">Location</span><span class="pop-val">${op.city || '—'}, ${op.country || '—'}</span></div>
-        <div class="pop-row"><span class="pop-key">Coords</span><span class="pop-val">${op.lat?.toFixed(4)}, ${op.lng?.toFixed(4)}</span></div>
+        ${op.village  ? `<div class="pop-row"><span class="pop-key">Kelurahan</span><span class="pop-val">${op.village}</span></div>` : ''}
+        ${op.district ? `<div class="pop-row"><span class="pop-key">Kecamatan</span><span class="pop-val">${op.district}</span></div>` : ''}
+        ${op.city     ? `<div class="pop-row"><span class="pop-key">Kota/Kab</span><span class="pop-val">${op.city}</span></div>` : ''}
+        ${op.province ? `<div class="pop-row"><span class="pop-key">Provinsi</span><span class="pop-val">${op.province}</span></div>` : ''}
+        <div class="pop-row"><span class="pop-key">Negara</span><span class="pop-val">${op.country || '—'}</span></div>
+        <div class="pop-row"><span class="pop-key">Coords</span><span class="pop-val">${op.lat?.toFixed(5)}, ${op.lng?.toFixed(5)}</span></div>
         <div class="pop-row"><span class="pop-key">Updated</span><span class="pop-val">${op.updatedAt ? new Date(op.updatedAt).toUTCString().split(' ')[4].slice(0,5) + ' UTC' : '—'}</span></div>
         ${op.id !== currentUser?.id ? `<a class="pop-dm" href="/dm/${op.id}">Send Direct Message</a>` : ''}
       </div>`;
@@ -453,20 +512,34 @@
     const ops   = Object.values(operatorData);
     const units = Object.values(unitData);
 
-    document.getElementById('online-count').textContent = ops.length + ' online';
-    document.getElementById('sb-online').textContent    = ops.length + ' operators online';
-    document.getElementById('sb-units').textContent     = units.length + ' field units';
+    const elCount  = document.getElementById('online-count');
+    const elOnline = document.getElementById('sb-online');
+    const elUnits  = document.getElementById('sb-units');
+    if (elCount)  elCount.textContent  = ops.length + ' online';
+    if (elOnline) elOnline.textContent = ops.length + ' operators online';
+    if (elUnits)  elUnits.textContent  = units.length + ' field units';
 
     // Operators list
     const opList = document.getElementById('operator-list');
     opList.innerHTML = ops.map(op => {
       const color = getColor(op.role);
       const isMe  = currentUser && op.id === currentUser.id;
+      // Susun lokasi: Kelurahan, Kecamatan, Kota, Provinsi, Negara
+      const locParts = [op.village, op.district, op.city, op.province, op.country].filter(Boolean);
+      const locShort = locParts.slice(0, 2).join(', ') || '—';
+      const locFull  = locParts.join(', ') || '—';
       return `
-        <div class="uli" onclick="panTo(${op.lat},${op.lng},14)">
-          <div class="status-dot" style="background:${color};width:6px;height:6px;flex-shrink:0;"></div>
-          <span class="uli-name">${op.name}${isMe ? ' <small style="color:var(--signal);">(you)</small>' : ''}</span>
-          <span class="uli-city">${op.city || '—'}</span>
+        <div class="uli" onclick="panTo(${op.lat},${op.lng},15)" title="${locFull}" style="flex-direction:column;align-items:flex-start;gap:2px;">
+          <div style="display:flex;align-items:center;gap:6px;width:100%;">
+            <div class="status-dot" style="background:${color};width:6px;height:6px;flex-shrink:0;"></div>
+            <span class="uli-name" style="flex:1;">${op.name}${isMe ? ' <small style="color:var(--signal);">(you)</small>' : ''}</span>
+            <span style="font-size:8px;color:var(--cmd);letter-spacing:.05em;">${op.role}</span>
+          </div>
+          <div style="font-size:9px;color:var(--ash);padding-left:12px;line-height:1.4;">
+            ${op.village  ? `<span style="color:var(--mist);">${op.village}</span>` : ''}
+            ${op.district ? `<span style="color:var(--ash);">${op.village ? ' · ' : ''}${op.district}</span>` : ''}
+            ${op.city     ? `<div style="color:var(--ash);">${op.city}${op.province ? ', ' + op.province : ''}</div>` : ''}
+          </div>
         </div>`;
     }).join('') || '<div style="font-size:10px;color:var(--ash);padding:4px 0;">No operators online</div>';
 
@@ -489,6 +562,75 @@
 
   function flashSync() {
     document.getElementById('sync-time').textContent = 'Last sync: ' + new Date().toUTCString().split(' ')[4] + ' UTC';
+  }
+
+  // ── GPS Permission ──────────────────────────────────────────
+  function checkGPSPermission() {
+    if (!navigator.geolocation) {
+      document.getElementById('gps-denied-banner').style.display = 'flex';
+      return;
+    }
+    // Cek via Permissions API jika tersedia
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'granted') {
+          // Sudah diizinkan — push langsung
+          requestGPS();
+        } else if (result.state === 'prompt') {
+          // Belum ditanya — tampilkan banner
+          document.getElementById('gps-banner').style.display = 'flex';
+        } else if (result.state === 'denied') {
+          document.getElementById('gps-denied-banner').style.display = 'flex';
+          // Masih bisa pakai IP
+          pushIPPosition();
+        }
+        // Monitor perubahan
+        result.onchange = () => {
+          if (result.state === 'granted') {
+            document.getElementById('gps-banner').style.display = 'none';
+            document.getElementById('gps-denied-banner').style.display = 'none';
+            requestGPS();
+          }
+        };
+      }).catch(() => {
+        // Permissions API tidak tersedia — coba langsung
+        requestGPS();
+      });
+    } else {
+      // Tidak ada Permissions API — langsung minta (akan muncul dialog)
+      document.getElementById('gps-banner').style.display = 'flex';
+    }
+  }
+
+  function requestGPSExplicit() {
+    document.getElementById('gps-banner').style.display = 'none';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        document.getElementById('gps-denied-banner').style.display = 'none';
+        pushGPSPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        // Langsung load ulang setelah posisi tersimpan
+        setTimeout(loadAllPositions, 1500);
+      },
+      () => {
+        document.getElementById('gps-denied-banner').style.display = 'flex';
+        pushIPPosition();
+        setTimeout(loadAllPositions, 1500);
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  }
+
+  // Retry otomatis saat operator list kosong (GPS mungkin belum selesai)
+  let retryCount = 0;
+  function scheduleRetry() {
+    if (retryCount >= 5) return; // max 5x retry
+    retryCount++;
+    const delay = retryCount * 3000; // 3s, 6s, 9s, 12s, 15s
+    setTimeout(async () => {
+      await loadAllPositions();
+      if (Object.keys(operatorData).length === 0) scheduleRetry();
+      else retryCount = 0;
+    }, delay);
   }
 
   // Zone tooltip style

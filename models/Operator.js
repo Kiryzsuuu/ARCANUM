@@ -10,11 +10,14 @@ const OperatorSchema = new mongoose.Schema({
   clearance:   { type: Number, min: 1, max: 4, default: 2 },
   active:      { type: Boolean, default: true },
   lastLogin:   { type: Date },
-  // Real-time position (updated from IP geolocation on login)
+  // Real-time position
   lat:         { type: Number, default: null },
   lng:         { type: Number, default: null },
-  city:        { type: String, default: '' },
-  country:     { type: String, default: '' },
+  country:     { type: String, default: '' },   // Negara
+  province:    { type: String, default: '' },   // Provinsi
+  city:        { type: String, default: '' },   // Kota / Kabupaten
+  district:    { type: String, default: '' },   // Kecamatan
+  village:     { type: String, default: '' },   // Kelurahan / Desa
   posUpdatedAt:{ type: Date },
   createdAt:   { type: Date, default: Date.now }
 });

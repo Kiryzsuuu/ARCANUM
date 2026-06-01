@@ -56,20 +56,24 @@ io.on('connection', (socket) => {
       const onlineIds = Object.keys(userSockets);
       const ops = onlineIds.length
         ? await Operator.find({ active: true, lat: { $ne: null }, operatorId: { $in: onlineIds } })
-            .select('operatorId name role clearance lat lng city country posUpdatedAt').lean()
+            .select('operatorId name role clearance lat lng country province city district village posUpdatedAt').lean()
         : [];
       socket.emit('positions-init', ops.map(o => ({
         id: o.operatorId, name: o.name, role: o.role, clearance: o.clearance,
-        lat: o.lat, lng: o.lng, city: o.city, country: o.country,
+        lat: o.lat, lng: o.lng,
+        country: o.country, province: o.province, city: o.city,
+        district: o.district, village: o.village,
         updatedAt: o.posUpdatedAt, status: 'online'
       })));
       // 2. Broadcast posisi operator ini ke semua client lain yang sudah ada
       const me = await Operator.findOne({ operatorId, active: true, lat: { $ne: null } })
-        .select('name role clearance lat lng city country').lean();
+        .select('name role clearance lat lng country province city district village').lean();
       if (me) {
         socket.broadcast.emit('operator-position', {
           id: operatorId, name: me.name, role: me.role, clearance: me.clearance,
-          lat: me.lat, lng: me.lng, city: me.city, country: me.country,
+          lat: me.lat, lng: me.lng,
+          country: me.country, province: me.province, city: me.city,
+          district: me.district, village: me.village,
           status: 'online', updatedAt: new Date().toISOString()
         });
         // Update unit yang linked ke operator ini
