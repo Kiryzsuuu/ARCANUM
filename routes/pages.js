@@ -50,8 +50,11 @@ router.put('/api/me', async (req, res) => {
   const me = req.session.user.id;
   const { name, email, passphrase, newPassphrase } = req.body;
   try {
-    const op = await Operator.findOne({ operatorId: me });
-    if (!op) return res.status(404).json({ error: 'Not found' });
+    // Cari by operatorId ATAU email sebagai fallback
+    const op = await Operator.findOne({
+      $or: [{ operatorId: me }, { operatorId: me?.toUpperCase() }, { email: req.session.user.email }]
+    });
+    if (!op) return res.status(404).json({ error: 'Operator tidak ditemukan. Coba logout dan login ulang.' });
 
     // Verify current passphrase before allowing changes
     if (passphrase) {
@@ -67,7 +70,8 @@ router.put('/api/me', async (req, res) => {
 
     await op.save();
 
-    // Update session
+    // Update session (pastikan id sinkron)
+    req.session.user.id    = op.operatorId;
     req.session.user.name  = op.name;
     req.session.user.email = op.email;
 
