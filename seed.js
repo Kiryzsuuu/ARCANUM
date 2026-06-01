@@ -24,7 +24,7 @@ async function seed() {
       operatorId: 'SA-000',
       email:      'maskiryz23@gmail.com',
       passphrase: 'opet123',
-      name:       'OPET',
+      name:       'RIZKY',
       role:       'CHIEF',
       clearance:  4
     },

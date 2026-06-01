@@ -8,8 +8,9 @@ const UnitSchema = new mongoose.Schema({
   grid:      { type: String },
   lat:       { type: Number },
   lng:       { type: Number },
-  status:    { type: String, enum: ['nominal', 'monitoring', 'threat'], default: 'nominal' },
-  updatedAt: { type: Date, default: Date.now }
+  status:          { type: String, enum: ['nominal', 'monitoring', 'threat'], default: 'nominal' },
+  linkedOperatorId:{ type: String, default: null }, // ikuti posisi operator ini
+  updatedAt:       { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Unit', UnitSchema);

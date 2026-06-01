@@ -52,13 +52,16 @@ io.on('connection', (socket) => {
     socket.operatorId = operatorId;
     try {
       const Operator = require('./models/Operator');
-      // 1. Kirim semua posisi yang ada ke client ini (untuk grid page)
-      const ops = await Operator.find({ active: true, lat: { $ne: null } })
-        .select('operatorId name role clearance lat lng city country posUpdatedAt').lean();
+      // 1. Kirim hanya operator yang ONLINE (ada di userSockets) ke client ini
+      const onlineIds = Object.keys(userSockets);
+      const ops = onlineIds.length
+        ? await Operator.find({ active: true, lat: { $ne: null }, operatorId: { $in: onlineIds } })
+            .select('operatorId name role clearance lat lng city country posUpdatedAt').lean()
+        : [];
       socket.emit('positions-init', ops.map(o => ({
         id: o.operatorId, name: o.name, role: o.role, clearance: o.clearance,
         lat: o.lat, lng: o.lng, city: o.city, country: o.country,
-        updatedAt: o.posUpdatedAt, status: 'active'
+        updatedAt: o.posUpdatedAt, status: 'online'
       })));
       // 2. Broadcast posisi operator ini ke semua client lain yang sudah ada
       const me = await Operator.findOne({ operatorId, active: true, lat: { $ne: null } })
@@ -69,6 +72,15 @@ io.on('connection', (socket) => {
           lat: me.lat, lng: me.lng, city: me.city, country: me.country,
           status: 'online', updatedAt: new Date().toISOString()
         });
+        // Update unit yang linked ke operator ini
+        const Unit = require('./models/Unit');
+        const linkedUnits = await Unit.find({ linkedOperatorId: operatorId });
+        for (const unit of linkedUnits) {
+          unit.lat = me.lat; unit.lng = me.lng;
+          unit.grid = `${me.city || 'FIELD'}`; unit.updatedAt = new Date();
+          await unit.save();
+          io.emit('unit-moved', { unit: unit.unitId, name: unit.name, grid: unit.grid, lat: me.lat, lng: me.lng, time: new Date().toISOString() });
+        }
       }
     } catch (_) {}
   });
@@ -150,7 +162,11 @@ io.on('connection', (socket) => {
       io.to(data.channel).emit('user-left', { user: data.user });
       delete onlineUsers[socket.id];
     }
-    if (socket.operatorId) delete userSockets[socket.operatorId];
+    if (socket.operatorId) {
+      delete userSockets[socket.operatorId];
+      // Beritahu semua viewer grid bahwa operator ini offline
+      io.emit('operator-offline', { id: socket.operatorId });
+    }
   });
 });
 

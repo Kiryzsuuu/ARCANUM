@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/css/arcanum.css">
   <link rel="stylesheet" href="/css/themes.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
     .page-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px; }
@@ -148,6 +150,26 @@
             </div>
           </div>
 
+          <!-- Field Units Panel -->
+          <div id="panel-units" style="display:none;">
+            <div style="margin-bottom:10px;font-size:11px;color:var(--ash);">
+              Kelola field unit yang muncul di peta taktis. Ubah posisi, status, dan role tiap unit.
+            </div>
+            <div class="panel" style="overflow:auto;">
+              <table class="ops-table" id="units-table">
+                <thead>
+                  <tr>
+                    <th>Unit ID</th><th>Nama</th><th>Role</th><th>Grid</th>
+                    <th>Lat</th><th>Lng</th><th>Status</th><th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="units-tbody">
+                  <tr><td colspan="8" class="empty-ops">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Invite Codes Panel -->
           <div id="panel-invite" style="display:none;">
             <div style="margin-bottom:10px;font-size:11px;color:var(--ash);">
@@ -260,6 +282,117 @@
     </div>
   </div>
 
+  <!-- Map Picker Modal -->
+  <div id="map-picker-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);align-items:center;justify-content:center;padding:12px;">
+    <div style="background:var(--bg-panel);border:.5px solid var(--border);border-radius:10px;width:100%;max-width:720px;display:flex;flex-direction:column;overflow:hidden;max-height:90vh;">
+      <div style="padding:12px 16px;border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div>
+          <div style="font-size:13px;font-weight:bold;color:var(--frost);">PILIH LOKASI DI PETA</div>
+          <div style="font-size:10px;color:var(--ash);margin-top:2px;">Klik di peta untuk menentukan posisi · Drag marker untuk menyesuaikan</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="closeMapPicker()"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="unit-map-picker" style="flex:1;height:420px;"></div>
+      <div style="padding:10px 16px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;">
+        <i class="ti ti-map-pin" style="color:var(--signal);"></i>
+        <span style="font-size:11px;color:var(--mist);flex:1;" id="picker-coords">Klik peta untuk memilih koordinat</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeMapPicker()">Batal</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmMapPick()"><i class="ti ti-check"></i> Gunakan Lokasi Ini</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Field Unit Modal -->
+  <div class="modal-overlay" id="unit-modal" style="display:none;" onclick="if(event.target.id==='unit-modal')this.style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;">
+      <div class="modal-header">
+        <span class="modal-title" id="unit-modal-title">ADD FIELD UNIT</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('unit-modal').style.display='none'"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-id-badge"></i> Unit ID</div>
+            <div class="input-box"><input type="text" id="u-id" placeholder="CMD / A1 / F3" autocomplete="off" style="text-transform:uppercase;"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-user"></i> Nama Unit</div>
+            <div class="input-box"><input type="text" id="u-name" placeholder="ALPHA-1" autocomplete="off" style="text-transform:uppercase;"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-shield"></i> Role</div>
+            <select class="field-select" id="u-role">
+              <option value="CMD">CMD — Command</option>
+              <option value="OPS" selected>OPS — Operator</option>
+              <option value="RECON">RECON</option>
+              <option value="INTEL">INTEL</option>
+              <option value="LOG">LOG</option>
+              <option value="!">! — Unknown/Threat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-activity"></i> Status</div>
+            <select class="field-select" id="u-status">
+              <option value="nominal" selected>NOMINAL</option>
+              <option value="monitoring">MONITORING</option>
+              <option value="threat">THREAT</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-map-pin"></i> Grid Ref</div>
+            <div class="input-box"><input type="text" id="u-grid" placeholder="QR-XXXX" autocomplete="off" style="text-transform:uppercase;"></div>
+          </div>
+          <div class="form-group">
+            <div class="field-label"><i class="ti ti-hierarchy"></i> Clearance</div>
+            <select class="field-select" id="u-clearance">
+              <option value="1">LVL 1</option>
+              <option value="2" selected>LVL 2</option>
+              <option value="3">LVL 3</option>
+            </select>
+          </div>
+        </div>
+        <!-- Linked operator (posisi otomatis ikut anggota) -->
+        <div class="form-group">
+          <div class="field-label"><i class="ti ti-user-pin"></i> Posisi dari Anggota <span style="color:var(--ash);font-size:9px;">(opsional — posisi unit ikut GPS anggota ini)</span></div>
+          <select class="field-select" id="u-linked">
+            <option value="">— Manual / Tidak terhubung —</option>
+          </select>
+        </div>
+
+        <!-- Koordinat manual atau dari peta -->
+        <div style="background:var(--deep);border:.5px solid var(--border);border-radius:6px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:9px;color:var(--cmd);letter-spacing:.08em;text-transform:uppercase;">Koordinat Lokasi</span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openMapPicker()">
+              <i class="ti ti-map-2"></i> Pilih dari Peta
+            </button>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <div class="field-label"><i class="ti ti-crosshair"></i> Latitude</div>
+              <div class="input-box"><input type="number" id="u-lat" placeholder="-6.200000" step="any"></div>
+            </div>
+            <div class="form-group">
+              <div class="field-label"><i class="ti ti-crosshair"></i> Longitude</div>
+              <div class="input-box"><input type="number" id="u-lng" placeholder="106.816000" step="any"></div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--ash);margin-top:4px;">
+            Atau ambil dari Google Maps: klik kanan lokasi → salin koordinat
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('unit-modal').style.display='none'">Batal</button>
+        <button class="btn btn-primary" id="u-save"><i class="ti ti-device-floppy"></i> Simpan Unit</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Generate Invite Code Modal -->
   <div class="modal-overlay" id="inv-modal" style="display:none;" onclick="if(event.target.id==='inv-modal')this.style.display='none'">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:400px;">
@@ -322,35 +455,132 @@
 
     async function init() {
       currentUser = await initTopbar('OPERATORS');
-      const isAdmin = ['SA','ADMIN'].includes(currentUser.role) || currentUser.clearance >= 3;
+      const isAdmin = ['CHIEF','SA','ADMIN'].includes(currentUser.role) || currentUser.clearance >= 3;
       if (isAdmin) {
         const addBtn = document.getElementById('add-btn');
         addBtn.style.display = 'flex';
         addBtn.onclick = () => { if (currentTab === 'operators') openAddModal(); else openInviteModal(); };
       }
       await loadOperators();
+
+      // Auto-buka tab dari localStorage (misal dari link di grid page)
+      const savedTab = localStorage.getItem('ops-tab');
+      if (savedTab && savedTab !== 'operators') {
+        localStorage.removeItem('ops-tab');
+        switchTab(savedTab);
+      }
     }
 
     // ── Tab switching ───────────────────────────────────────────
+    const TAB_CONFIG = {
+      operators: { title:'OPERATOR MANAGEMENT', sub:'// REGISTERED OPERATORS — CLEARANCE & ACCESS CONTROL', addLabel:'Add Operator' },
+      invite:    { title:'INVITE CODES',         sub:'// KODE UNDANGAN — USER DAFTAR SENDIRI MENGGUNAKAN KODE', addLabel:'Generate Kode' },
+      units:     { title:'FIELD UNITS',          sub:'// UNIT LAPANGAN DI PETA TAKTIS', addLabel:'Add Unit' },
+    };
+    const TABS = ['operators','invite','units'];
+
     function switchTab(tab) {
       currentTab = tab;
-      document.getElementById('panel-operators').style.display = tab === 'operators' ? '' : 'none';
-      document.getElementById('panel-invite').style.display    = tab === 'invite'    ? '' : 'none';
-      document.getElementById('tab-operators').style.borderColor = tab === 'operators' ? 'var(--cmd)' : '';
-      document.getElementById('tab-operators').style.color       = tab === 'operators' ? 'var(--mist)' : '';
-      document.getElementById('tab-invite').style.borderColor    = tab === 'invite'    ? 'var(--cmd)' : '';
-      document.getElementById('tab-invite').style.color          = tab === 'invite'    ? 'var(--mist)' : '';
-      const addBtn = document.getElementById('add-btn');
-      if (tab === 'operators') {
-        document.getElementById('add-btn-label').textContent = 'Add Operator';
-        document.getElementById('ph-title').textContent = 'OPERATOR MANAGEMENT';
-        document.getElementById('ph-sub').textContent   = '// REGISTERED OPERATORS — CLEARANCE & ACCESS CONTROL';
-      } else {
-        document.getElementById('add-btn-label').textContent = 'Generate Kode';
-        document.getElementById('ph-title').textContent = 'INVITE CODES';
-        document.getElementById('ph-sub').textContent   = '// KODE UNDANGAN — USER DAFTAR SENDIRI MENGGUNAKAN KODE';
-        loadInviteCodes();
+      TABS.forEach(t => {
+        document.getElementById('panel-' + t).style.display = t === tab ? '' : 'none';
+        const btn = document.getElementById('tab-' + t);
+        if (btn) { btn.style.borderColor = t === tab ? 'var(--cmd)' : ''; btn.style.color = t === tab ? 'var(--mist)' : ''; }
+      });
+      const cfg = TAB_CONFIG[tab];
+      document.getElementById('add-btn-label').textContent = cfg.addLabel;
+      document.getElementById('ph-title').textContent = cfg.title;
+      document.getElementById('ph-sub').textContent   = cfg.sub;
+      document.getElementById('add-btn').onclick = () => {
+        if (tab === 'operators') openAddModal();
+        else if (tab === 'invite') openInviteModal();
+        else openUnitModal();
+      };
+      if (tab === 'invite') loadInviteCodes();
+      if (tab === 'units')  loadUnits();
+    }
+
+    // ── Field Units ─────────────────────────────────────────────
+    async function loadUnits() {
+      const units = await api('/api/units');
+      const tbody = document.getElementById('units-tbody');
+      if (!units.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-ops">Belum ada field unit.</td></tr>`; return;
       }
+      const STATUS_COLOR = { nominal:'var(--ops)', monitoring:'var(--siaga)', threat:'var(--threat)' };
+      tbody.innerHTML = units.map(u => `
+        <tr>
+          <td data-label="ID"><span class="op-id">${u.id||u.unitId}</span></td>
+          <td data-label="Nama"><span class="op-name">${u.name}</span></td>
+          <td data-label="Role"><span style="color:${ROLE_COLOR[u.role]||'var(--mist)'};font-size:10px;font-weight:bold;">${u.role}</span></td>
+          <td data-label="Grid"><span style="font-size:10px;font-family:var(--font);">${u.grid||'—'}</span></td>
+          <td data-label="Lat"><span style="font-size:10px;">${u.lat?.toFixed(4)||'—'}</span></td>
+          <td data-label="Lng"><span style="font-size:10px;">${u.lng?.toFixed(4)||'—'}</span></td>
+          <td data-label="Status"><span style="color:${STATUS_COLOR[u.status]||'var(--mist)'};font-size:10px;font-weight:bold;">${(u.status||'').toUpperCase()}</span></td>
+          <td data-label="Aksi">
+            <div class="action-btns">
+              <button class="btn btn-ghost btn-sm" onclick='openUnitModal(${JSON.stringify(u)})'><i class="ti ti-edit"></i> Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteUnit('${u.id||u.unitId}')"><i class="ti ti-trash"></i></button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    async function openUnitModal(unit = null) {
+      const isEdit = !!unit;
+      document.getElementById('unit-modal-title').textContent = isEdit ? 'EDIT FIELD UNIT' : 'ADD FIELD UNIT';
+      document.getElementById('u-id').value        = unit?.unitId || unit?.id || '';
+      document.getElementById('u-id').disabled     = isEdit;
+      document.getElementById('u-name').value      = unit?.name || '';
+      document.getElementById('u-role').value      = unit?.role || 'OPS';
+      document.getElementById('u-grid').value      = unit?.grid || '';
+      document.getElementById('u-lat').value       = unit?.lat  || '';
+      document.getElementById('u-lng').value       = unit?.lng  || '';
+      document.getElementById('u-status').value    = unit?.status || 'nominal';
+      document.getElementById('u-clearance').value = unit?.clearance || 2;
+
+      // Load operator list untuk dropdown linked
+      const ops = await api('/api/operators');
+      const sel = document.getElementById('u-linked');
+      sel.innerHTML = '<option value="">— Manual / Tidak terhubung —</option>' +
+        ops.filter(o => o.active).map(o =>
+          `<option value="${o.id}"${(unit?.linkedOperatorId===o.id)?'selected':''}>${o.name} (${o.id}) · ${o.role}</option>`
+        ).join('');
+      sel.value = unit?.linkedOperatorId || '';
+
+      document.getElementById('unit-modal').style.display = 'flex';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('u-save')?.addEventListener('click', async () => {
+        const id = document.getElementById('u-id').value.trim().toUpperCase();
+        const linked = document.getElementById('u-linked').value;
+        const body = {
+          unitId:           id,
+          name:             document.getElementById('u-name').value.trim().toUpperCase(),
+          role:             document.getElementById('u-role').value,
+          grid:             document.getElementById('u-grid').value.trim().toUpperCase(),
+          lat:              parseFloat(document.getElementById('u-lat').value) || null,
+          lng:              parseFloat(document.getElementById('u-lng').value) || null,
+          status:           document.getElementById('u-status').value,
+          clearance:        Number(document.getElementById('u-clearance').value),
+          linkedOperatorId: linked || null,
+        };
+        const isEdit = document.getElementById('u-id').disabled;
+        const r = await api(isEdit ? '/api/units/' + id : '/api/units', {
+          method: isEdit ? 'PUT' : 'POST',
+          body: JSON.stringify(body)
+        });
+        if (r.error) { showToast(r.error, true); return; }
+        document.getElementById('unit-modal').style.display = 'none';
+        showToast(isEdit ? 'Unit diperbarui' : 'Unit ditambahkan');
+        loadUnits();
+      });
+    });
+
+    async function deleteUnit(id) {
+      if (!confirm('Hapus unit ' + id + '?')) return;
+      const r = await api('/api/units/' + id, { method: 'DELETE' });
+      if (r.success) { loadUnits(); showToast('Unit dihapus'); }
     }
 
     // ── Invite Codes ────────────────────────────────────────────
@@ -630,6 +860,91 @@
     const style = document.createElement('style');
     style.textContent = `.err-box { background:#1a0505; border:.5px solid #A32D2D; border-radius:4px; padding:8px 12px; font-size:11px; color:var(--threat); display:flex; align-items:center; gap:8px; }`;
     document.head.appendChild(style);
+
+    // ── MAP PICKER ──────────────────────────────────────────────
+    let mapPicker   = null;
+    let pickerMarker= null;
+    let pickedLatLng= null;
+
+    function openMapPicker() {
+      const modal = document.getElementById('map-picker-modal');
+      modal.style.display = 'flex';
+
+      // Init map jika belum ada
+      if (!mapPicker) {
+        // Cari posisi awal dari lat/lng yang sudah diisi atau default Jakarta
+        const initLat = parseFloat(document.getElementById('u-lat').value) || -6.200;
+        const initLng = parseFloat(document.getElementById('u-lng').value) || 106.816;
+
+        mapPicker = L.map('unit-map-picker', { center: [initLat, initLng], zoom: 12 });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+        }).addTo(mapPicker);
+
+        // Klik peta → taruh/pindah marker
+        mapPicker.on('click', (e) => {
+          pickedLatLng = e.latlng;
+          if (pickerMarker) {
+            pickerMarker.setLatLng(e.latlng);
+          } else {
+            pickerMarker = L.marker(e.latlng, { draggable: true }).addTo(mapPicker);
+            pickerMarker.on('dragend', ev => {
+              pickedLatLng = ev.target.getLatLng();
+              updatePickerCoords();
+            });
+          }
+          updatePickerCoords();
+        });
+      } else {
+        mapPicker.invalidateSize();
+      }
+
+      // Kalau sudah ada koordinat, tampilkan marker di sana
+      const lat = parseFloat(document.getElementById('u-lat').value);
+      const lng = parseFloat(document.getElementById('u-lng').value);
+      if (lat && lng) {
+        pickedLatLng = L.latLng(lat, lng);
+        if (pickerMarker) pickerMarker.setLatLng(pickedLatLng);
+        else {
+          pickerMarker = L.marker(pickedLatLng, { draggable: true }).addTo(mapPicker);
+          pickerMarker.on('dragend', ev => { pickedLatLng = ev.target.getLatLng(); updatePickerCoords(); });
+        }
+        mapPicker.setView(pickedLatLng, 14);
+        updatePickerCoords();
+      }
+    }
+
+    function updatePickerCoords() {
+      if (!pickedLatLng) return;
+      document.getElementById('picker-coords').innerHTML =
+        `<strong style="color:var(--signal);">${pickedLatLng.lat.toFixed(6)}</strong>,
+         <strong style="color:var(--signal);">${pickedLatLng.lng.toFixed(6)}</strong>
+         &nbsp;— klik konfirmasi untuk pakai koordinat ini`;
+    }
+
+    function confirmMapPick() {
+      if (!pickedLatLng) {
+        document.getElementById('picker-coords').textContent = 'Klik peta terlebih dahulu untuk memilih lokasi!';
+        return;
+      }
+      document.getElementById('u-lat').value = pickedLatLng.lat.toFixed(6);
+      document.getElementById('u-lng').value = pickedLatLng.lng.toFixed(6);
+      closeMapPicker();
+      showToast('Koordinat dipilih: ' + pickedLatLng.lat.toFixed(4) + ', ' + pickedLatLng.lng.toFixed(4));
+    }
+
+    function closeMapPicker() {
+      document.getElementById('map-picker-modal').style.display = 'none';
+    }
+
+    // Override Leaflet styling untuk tema
+    const leafletStyle = document.createElement('style');
+    leafletStyle.textContent = `
+      .leaflet-container { background:#040c16; }
+      .leaflet-control-zoom a { background:var(--bg-panel);color:var(--mist);border-color:var(--border); }
+      .leaflet-control-attribution { background:rgba(6,14,26,.8)!important;color:var(--ash)!important;font-size:8px; }
+    `;
+    document.head.appendChild(leafletStyle);
 
     init();
   </script>

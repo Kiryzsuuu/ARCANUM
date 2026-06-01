@@ -195,19 +195,15 @@ router.get('/api/messages/:channel', async (req, res) => {
 // GET all operator positions (for live map)
 router.get('/api/positions', async (req, res) => {
   try {
-    const ops = await Operator.find({ active: true, lat: { $ne: null } })
+    const userSockets = req.app.get('userSockets') || {};
+    const onlineIds   = Object.keys(userSockets);
+    if (!onlineIds.length) return res.json([]);
+    const ops = await Operator.find({ active: true, lat: { $ne: null }, operatorId: { $in: onlineIds } })
       .select('operatorId name role clearance lat lng city country posUpdatedAt').lean();
     res.json(ops.map(o => ({
-      id:   o.operatorId,
-      name: o.name,
-      role: o.role,
-      clearance: o.clearance,
-      lat:  o.lat,
-      lng:  o.lng,
-      city: o.city,
-      country: o.country,
-      updatedAt: o.posUpdatedAt,
-      status: 'active'
+      id: o.operatorId, name: o.name, role: o.role, clearance: o.clearance,
+      lat: o.lat, lng: o.lng, city: o.city, country: o.country,
+      updatedAt: o.posUpdatedAt, status: 'online'
     })));
   } catch { res.json([]); }
 });
