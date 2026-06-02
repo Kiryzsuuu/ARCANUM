@@ -18,18 +18,34 @@
     }
     .wt-channel-bar i.ti-radio { font-size:18px; color:var(--cmd); flex-shrink:0; }
 
-    .ch-sel-wrap { position:relative; flex:1; }
-    .ch-sel {
-      width:100%; background:var(--bg-input); border:.5px solid var(--border);
-      border-radius:6px; color:var(--frost); font-family:var(--font); font-size:12px;
-      padding:8px 34px 8px 12px; cursor:pointer; -webkit-appearance:none; appearance:none;
-      font-weight:bold; letter-spacing:.04em; transition:border-color .15s;
+    /* ── Channel manual input ─────────────── */
+    .ch-entry { flex:1; display:flex; flex-direction:column; gap:4px; min-width:0; }
+    .ch-entry-label { font-size:8px; color:var(--ash); letter-spacing:.1em; }
+    .ch-row { display:flex; gap:5px; align-items:center; }
+    .ch-input {
+      flex:1; min-width:0; background:var(--bg-input); border:.5px solid var(--border);
+      border-radius:6px; color:var(--frost); font-family:var(--font);
+      font-size:14px; font-weight:bold; letter-spacing:.06em;
+      padding:6px 10px; transition:border-color .15s;
     }
-    .ch-sel:focus { outline:none; border-color:var(--cmd); }
-    .ch-sel-wrap::after {
-      content:''; border:4px solid transparent; border-top:5px solid var(--ash);
-      position:absolute; right:12px; top:50%; transform:translateY(-20%); pointer-events:none;
+    .ch-input:focus { outline:none; border-color:var(--cmd); }
+    .ch-input::placeholder { font-size:11px; letter-spacing:.02em; font-weight:normal; }
+    .ch-join-btn {
+      background:var(--cmd); border:none; color:var(--frost);
+      font-family:var(--font); font-size:9px; padding:7px 12px;
+      border-radius:6px; cursor:pointer; letter-spacing:.06em; flex-shrink:0;
+      transition:opacity .15s;
     }
+    .ch-join-btn:hover { opacity:.85; }
+    .ch-join-btn.joined { background:rgba(34,204,68,.2); color:#22cc44; border:.5px solid #22cc44; }
+    .ch-recents { display:flex; flex-wrap:wrap; gap:4px; }
+    .ch-pill {
+      font-size:8px; color:var(--ash); background:var(--deep);
+      border:.5px solid var(--border); border-radius:4px;
+      padding:2px 8px; cursor:pointer; font-family:var(--font);
+      letter-spacing:.04em; transition:all .12s;
+    }
+    .ch-pill:hover { color:var(--signal); border-color:var(--cmd); }
 
     .wt-members { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ash); white-space:nowrap; flex-shrink:0; }
     .mem-dot { width:7px; height:7px; border-radius:50%; background:#444; transition:background .3s; flex-shrink:0; }
@@ -256,19 +272,24 @@
       <!-- Main -->
       <div class="wt-wrap">
 
-        <!-- Channel selector bar -->
+        <!-- Channel bar -->
         <div class="wt-channel-bar">
           <i class="ti ti-radio"></i>
-          <div class="ch-sel-wrap">
-            <select id="ch-sel" class="ch-sel" onchange="switchChannel(this.value)">
-              <option value="">Memuat channel…</option>
-            </select>
+          <div class="ch-entry">
+            <div class="ch-entry-label">FREKUENSI / CHANNEL</div>
+            <div class="ch-row">
+              <input type="text" id="ch-input" class="ch-input"
+                placeholder="contoh: 142.225 atau ALPHA"
+                maxlength="30" autocomplete="off" spellcheck="false"
+                onkeydown="if(event.key==='Enter')joinChannel()">
+              <button class="ch-join-btn" id="ch-join-btn" onclick="joinChannel()">JOIN</button>
+            </div>
+            <div class="ch-recents" id="ch-recents"></div>
           </div>
           <div class="wt-members">
             <div class="mem-dot" id="mem-dot"></div>
             <span id="mem-count">0 online</span>
           </div>
-          <!-- ON/OFF Toggle -->
           <div class="wt-toggle" id="wt-toggle" onclick="toggleWalkie()">
             <div class="tog-dot"></div>
             <span id="tog-label">OFF</span>
@@ -419,7 +440,12 @@
     wSocket.on('walkie-members', ({ count })      => setMembers(count));
 
     await initMic();
-    await loadChannels(saved?.channel);
+    // Restore channel dari localStorage
+    if (saved?.channel) {
+      document.getElementById('ch-input').value = saved.channel;
+      _doJoin(saved.channel);
+    }
+    _renderRecents();
     _applyToggleUI();
   }
 
@@ -455,33 +481,49 @@
     }
   }
 
-  // ── Channels ─────────────────────────────────────
-  async function loadChannels(restoreCh) {
-    const sel = document.getElementById('ch-sel');
-    try {
-      const chs = await api('/api/channels');
-      if (!chs.length) throw new Error('empty');
-      sel.innerHTML = chs.map(c =>
-        `<option value="${c.id}">${c.name.toUpperCase()}</option>`
-      ).join('');
-      const ch = restoreCh && chs.find(c => c.id === restoreCh) ? restoreCh : chs[0].id;
-      switchChannel(ch);
-    } catch(_) {
-      sel.innerHTML = '<option value="NET-OPEN">NET-OPEN (Default)</option>';
-      switchChannel('NET-OPEN');
-    }
+  // ── Channel manual ────────────────────────────────
+  function joinChannel() {
+    const raw = document.getElementById('ch-input').value.trim().toUpperCase();
+    if (!raw) return;
+    _addRecent(raw);
+    _doJoin(raw);
+    if (wtActive) _stSave({ active: true, channel: raw });
   }
 
-  function switchChannel(chId) {
+  function _doJoin(chId) {
     if (!chId) return;
     currentCh = chId;
-    document.getElementById('ch-sel').value = chId;
     document.getElementById('stat-ch').textContent = 'Channel: ' + chId;
+    document.getElementById('ch-input').value = chId;
+    const btn = document.getElementById('ch-join-btn');
+    btn.textContent = '✓ JOINED';
+    btn.classList.add('joined');
+    setTimeout(() => { btn.textContent = 'JOIN'; btn.classList.remove('joined'); }, 2000);
     feedItems = [];
     _renderFeed();
     offIncoming();
     if (wSocket?.connected && wtActive) wSocket.emit('walkie-join', { channel: chId });
-    if (wtActive) _stSave({ active: true, channel: chId });
+  }
+
+  // ── Recent channels ──────────────────────────────
+  function _addRecent(ch) {
+    const list = _getRecents().filter(c => c !== ch);
+    list.unshift(ch);
+    localStorage.setItem('wt-recents', JSON.stringify(list.slice(0, 6)));
+    _renderRecents();
+  }
+
+  function _getRecents() {
+    try { return JSON.parse(localStorage.getItem('wt-recents') || '[]'); } catch { return []; }
+  }
+
+  function _renderRecents() {
+    const wrap = document.getElementById('ch-recents');
+    const list = _getRecents();
+    if (!list.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = list.map(ch =>
+      `<div class="ch-pill" onclick="document.getElementById('ch-input').value='${ch}';joinChannel()">${ch}</div>`
+    ).join('');
   }
 
   function setMembers(count) {
