@@ -46,8 +46,9 @@ app.get('/api/config', requireAuth, (req, res) => {
 });
 
 // ── Socket.io ────────────────────────────────────────────────
-const onlineUsers = {};   // socketId -> { user, channel }
-const userSockets = {};   // operatorId -> socketId  (for DM delivery)
+const onlineUsers   = {};  // socketId -> { user, channel }
+const userSockets   = {};  // operatorId -> socketId
+const _callMembers  = {};  // channelId -> Map(socketId -> { name, role })
 
 io.on('connection', (socket) => {
 
@@ -189,6 +190,23 @@ io.on('connection', (socket) => {
     socket.to(`walkie:${channel}`).emit('walkie-unkey');
   });
 
+  // ── Intercom / Call mode ────────────────────────────────────────
+  socket.on('walkie-call-join', ({ channel, name, role }) => {
+    if (!_callMembers[channel]) _callMembers[channel] = new Map();
+    _callMembers[channel].set(socket.id, { name, role });
+    socket._callChannel = channel;
+    io.to(`walkie:${channel}`).emit('walkie-call-members', {
+      channel, members: [..._callMembers[channel].values()]
+    });
+  });
+
+  socket.on('walkie-call-leave', ({ channel }) => {
+    _callMembers[channel]?.delete(socket.id);
+    socket._callChannel = null;
+    const members = [...(_callMembers[channel]?.values() || [])];
+    io.to(`walkie:${channel}`).emit('walkie-call-members', { channel, members });
+  });
+
   // Streaming chunk realtime — teruskan segera tanpa buffer
   socket.on('walkie-chunk', ({ channel, chunk, seq, mimeType, isFirst }) => {
     socket.to(`walkie:${channel}`).emit('walkie-chunk', {
@@ -217,6 +235,13 @@ io.on('connection', (socket) => {
       delete userSockets[socket.operatorId];
       // Beritahu semua viewer grid bahwa operator ini offline
       io.emit('operator-offline', { id: socket.operatorId });
+    }
+    // Call cleanup
+    if (socket._callChannel) {
+      const cc = socket._callChannel;
+      _callMembers[cc]?.delete(socket.id);
+      const members = [...(_callMembers[cc]?.values() || [])];
+      io.to(`walkie:${cc}`).emit('walkie-call-members', { channel: cc, members });
     }
     // Walkie cleanup: clear stuck incoming indicator + update member count
     if (socket.walkieChannel) {

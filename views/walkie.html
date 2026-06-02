@@ -201,6 +201,54 @@
       display:none; animation:wt-pulse .5s ease-in-out infinite;
     }
 
+    /* ── Mode selector (PTT / INTERCOM) ─────── */
+    .wt-mode { display:flex; gap:6px; flex-shrink:0; background:var(--deep); border:.5px solid var(--border); border-radius:8px; padding:3px; }
+    .mode-tab { display:flex; align-items:center; gap:5px; padding:6px 14px; border-radius:5px; cursor:pointer; font-size:9px; letter-spacing:.07em; font-family:var(--font); color:var(--ash); transition:all .15s; user-select:none; white-space:nowrap; }
+    .mode-tab i { font-size:14px; }
+    .mode-tab.active { background:var(--bg-panel); color:var(--frost); box-shadow:0 1px 4px rgba(0,0,0,.4); }
+    .mode-tab.active.call-tab { color:#22cc44; }
+
+    /* ── Intercom Call Panel ──────────────── */
+    .wt-call-panel { display:flex; flex-direction:column; align-items:center; gap:14px; padding:8px 0 4px; width:100%; }
+    .call-idle-msg { font-size:11px; color:var(--ash); text-align:center; line-height:1.6; }
+    .call-join-btn {
+      display:flex; align-items:center; gap:8px;
+      background:rgba(34,204,68,.12); border:1.5px solid #22cc44; color:#22cc44;
+      border-radius:30px; padding:12px 28px; font-family:var(--font);
+      font-size:11px; font-weight:bold; letter-spacing:.06em;
+      cursor:pointer; transition:all .15s;
+    }
+    .call-join-btn:hover { background:rgba(34,204,68,.25); }
+    .call-join-btn i { font-size:18px; }
+
+    .call-live-row { display:flex; align-items:center; gap:8px; }
+    .call-live-badge { display:flex; align-items:center; gap:8px; background:rgba(34,204,68,.08); border:1px solid #22cc44; border-radius:20px; padding:7px 18px; font-size:10px; font-weight:bold; color:#22cc44; letter-spacing:.07em; }
+    .call-live-dot { width:8px; height:8px; border-radius:50%; background:#22cc44; box-shadow:0 0 0 0 rgba(34,204,68,.4); animation:inc-ring 1.4s ease-out infinite; flex-shrink:0; }
+
+    .call-members-wrap { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-width:280px; }
+    .call-chip {
+      display:flex; align-items:center; gap:5px;
+      border-radius:16px; padding:4px 12px; font-size:9px;
+      font-family:var(--font); letter-spacing:.04em;
+      border:.5px solid; transition:all .2s;
+    }
+    .call-chip-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+    .call-chip.speaking { animation:wt-pulse .6s ease-in-out infinite; }
+
+    .call-controls { display:flex; align-items:center; gap:14px; }
+    .call-ctrl-btn {
+      width:54px; height:54px; border-radius:50%; display:flex;
+      align-items:center; justify-content:center; font-size:22px;
+      cursor:pointer; border:none; transition:all .12s;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .call-ctrl-btn:hover { opacity:.85; transform:scale(1.05); }
+    .btn-mute  { background:var(--deep); border:1.5px solid var(--border); color:var(--mist); }
+    .btn-mute.muted { background:rgba(239,159,39,.1); border-color:#EF9F27; color:#EF9F27; }
+    .btn-end   { background:rgba(226,75,74,.15); border:1.5px solid #E24B4A; color:#E24B4A; width:64px; height:64px; font-size:26px; }
+    .btn-end:hover { background:rgba(226,75,74,.3); }
+    .call-dur  { font-size:11px; color:var(--ash); font-family:var(--font); letter-spacing:.06em; min-width:40px; text-align:center; }
+
     /* ── Toggle ON/OFF ─────────────────────── */
     .wt-toggle {
       display:flex; align-items:center; gap:8px; flex-shrink:0;
@@ -233,6 +281,23 @@
       .feed-item { padding:8px 10px; gap:8px; }
       .fi-avatar { width:32px; height:32px; font-size:11px; }
     }
+
+    /* ── Audio unlock banner ─── */
+    #audio-unlock-bar {
+      position:sticky; top:0; z-index:999;
+      background:linear-gradient(90deg,#0a1628,#0C1F38);
+      border-bottom:1.5px solid var(--signal);
+      padding:10px 16px; display:flex; align-items:center; gap:10px;
+      cursor:pointer; flex-shrink:0;
+      animation:_ub-pulse 2s ease-in-out infinite;
+    }
+    @keyframes _ub-pulse { 0%,100%{opacity:1} 50%{opacity:.75} }
+    #audio-unlock-bar i { font-size:20px; color:var(--signal); flex-shrink:0; }
+    #audio-unlock-bar .ub-msg { font-size:11px; color:var(--frost); flex:1; line-height:1.4; }
+    #audio-unlock-bar .ub-tap { font-size:9px; color:var(--signal); font-weight:bold; letter-spacing:.08em; flex-shrink:0; }
+
+    /* Live indicator on feed items */
+    .fi-live { font-size:8px; color:#22cc44; letter-spacing:.06em; white-space:nowrap; }
   </style>
 </head>
 <body>
@@ -271,6 +336,13 @@
 
       <!-- Main -->
       <div class="wt-wrap">
+
+        <!-- Audio unlock banner (hilang setelah tap pertama) -->
+        <div id="audio-unlock-bar" onclick="_unlockAudio(true)">
+          <i class="ti ti-volume-3"></i>
+          <div class="ub-msg"><b>Tap di sini</b> untuk mengaktifkan penerimaan suara realtime</div>
+          <div class="ub-tap">TAP ▶</div>
+        </div>
 
         <!-- Channel bar -->
         <div class="wt-channel-bar">
@@ -343,6 +415,19 @@
         <!-- PTT area -->
         <div class="wt-ptt-area">
 
+          <!-- Mode selector -->
+          <div class="wt-mode">
+            <div class="mode-tab active" id="mode-ptt" onclick="setMode('ptt')">
+              <i class="ti ti-microphone"></i> PTT
+            </div>
+            <div class="mode-tab call-tab" id="mode-call" onclick="setMode('call')">
+              <i class="ti ti-phone-call"></i> INTERCOM
+            </div>
+          </div>
+
+          <!-- PTT section -->
+          <div id="ptt-section">
+
           <!-- Waveform visualizer (shown during recording) -->
           <div class="ptt-viz-wrap" id="ptt-viz">
             <canvas id="viz-canvas"></canvas>
@@ -377,7 +462,52 @@
               <span id="stat-ch">Channel: —</span>
             </div>
           </div>
-        </div>
+
+          </div><!-- /ptt-section -->
+
+          <!-- ── INTERCOM panel ── -->
+          <div id="call-section" style="display:none;">
+            <div class="wt-call-panel">
+
+              <!-- Idle state -->
+              <div id="call-idle">
+                <div class="call-idle-msg">Bergabung untuk memulai<br>panggilan grup di channel ini</div>
+                <div style="margin-top:12px;text-align:center;">
+                  <button class="call-join-btn" onclick="startCall()">
+                    <i class="ti ti-phone"></i> Bergabung
+                  </button>
+                </div>
+              </div>
+
+              <!-- Active call state -->
+              <div id="call-active" style="display:none;">
+                <div class="call-live-row">
+                  <div class="call-live-badge">
+                    <div class="call-live-dot"></div>
+                    INTERCOM AKTIF
+                  </div>
+                  <div class="call-dur" id="call-dur">0:00</div>
+                </div>
+                <!-- Participant chips -->
+                <div class="call-members-wrap" id="call-members-list"></div>
+                <!-- Controls -->
+                <div class="call-controls">
+                  <div>
+                    <button class="call-ctrl-btn btn-mute" id="call-mute-btn" onclick="toggleMute()" title="Mute">
+                      <i class="ti ti-microphone" id="call-mute-icon"></i>
+                    </button>
+                    <div style="font-size:8px;text-align:center;color:var(--ash);margin-top:4px;" id="call-mute-lbl">MIC ON</div>
+                  </div>
+                  <button class="call-ctrl-btn btn-end" onclick="endCall()" title="Hang up">
+                    <i class="ti ti-phone-off"></i>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div><!-- /call-section -->
+
+        </div><!-- /wt-ptt-area -->
       </div>
     </div>
 
@@ -424,8 +554,53 @@
   let _isFirst     = true;
   const _mse = { audio:null, source:null, sb:null, queue:[], ready:false, active:false, mime:'' };
 
+  // ── Audio unlock ──────────────────────────────────
+  let _audioUnlocked   = false;
+  let _audioUnlockQueue = [];   // callbacks waiting for unlock
+
+  function _unlockAudio(fromBanner) {
+    if (_audioUnlocked) {
+      if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+      return;
+    }
+    // Play a near-silent audio to satisfy autoplay policy
+    const sil = new Audio();
+    sil.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQAAAAA=';
+    sil.volume = 0.001;
+    sil.play().then(() => {
+      _audioUnlocked = true;
+      document.getElementById('audio-unlock-bar')?.remove();
+      if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+      // Run queued callbacks
+      const q = _audioUnlockQueue.splice(0);
+      q.forEach(fn => { try { fn(); } catch(_) {} });
+      // If MSE audio is waiting, start it
+      if (_mse.audio) _mse.audio.play().catch(() => {});
+    }).catch(() => {
+      if (fromBanner) {
+        // Try alternative: create AudioContext directly
+        try {
+          const tmp = new (window.AudioContext || window.webkitAudioContext)();
+          tmp.resume().then(() => {
+            _audioUnlocked = true;
+            document.getElementById('audio-unlock-bar')?.remove();
+            const q = _audioUnlockQueue.splice(0);
+            q.forEach(fn => { try { fn(); } catch(_) {} });
+          });
+        } catch(_) {}
+      }
+    });
+  }
+
   function _stGet() { try { return JSON.parse(localStorage.getItem(WT_LS) || 'null'); } catch { return null; } }
   function _stSave(v) { if (v) localStorage.setItem(WT_LS, JSON.stringify(v)); else localStorage.removeItem(WT_LS); }
+
+  // ── Intercom / Call mode state ────────────────────
+  let callActive  = false;
+  let callMuted   = false;
+  let _callRec    = null;
+  let _callDurInt = null;
+  let _callStart  = 0;
 
   // ── Bootstrap ────────────────────────────────────
   async function init() {
@@ -443,7 +618,8 @@
     wSocket.on('walkie-chunk',   (data)           => _mseChunk(data));
     wSocket.on('walkie-unkey',   ()               => { offIncoming(); _mseEnd(); });
     wSocket.on('walkie-receive', (data)           => onReceive(data));
-    wSocket.on('walkie-members', ({ count })      => setMembers(count));
+    wSocket.on('walkie-members',      ({ count })   => setMembers(count));
+    wSocket.on('walkie-call-members', ({ members }) => _renderCallChips(members));
 
     await initMic();
     // Restore channel dari localStorage
@@ -457,6 +633,7 @@
 
   // ── ON/OFF Toggle ────────────────────────────────
   function toggleWalkie() {
+    _unlockAudio(); // unlock audio saat toggle
     wtActive = !wtActive;
     if (wtActive) {
       _stSave({ active: true, channel: currentCh || '' });
@@ -491,6 +668,7 @@
   function joinChannel() {
     const raw = document.getElementById('ch-input').value.trim().toUpperCase();
     if (!raw) return;
+    _unlockAudio(); // unlock audio saat join
     _addRecent(raw);
     _doJoin(raw);
     if (wtActive) _stSave({ active: true, channel: raw });
@@ -530,6 +708,159 @@
     wrap.innerHTML = list.map(ch =>
       `<div class="ch-pill" onclick="document.getElementById('ch-input').value='${ch}';joinChannel()">${ch}</div>`
     ).join('');
+  }
+
+  // ══════════════════════════════════════════════
+  //  MODE SELECTOR
+  // ══════════════════════════════════════════════
+  function setMode(mode) {
+    document.getElementById('mode-ptt').classList.toggle('active',  mode === 'ptt');
+    document.getElementById('mode-call').classList.toggle('active', mode === 'call');
+    document.getElementById('ptt-section').style.display  = mode === 'ptt'  ? '' : 'none';
+    document.getElementById('call-section').style.display = mode === 'call' ? '' : 'none';
+    if (mode === 'ptt' && callActive) endCall();
+  }
+
+  // ══════════════════════════════════════════════
+  //  INTERCOM — Call mode
+  // ══════════════════════════════════════════════
+  async function startCall() {
+    if (!wtActive) {
+      arcAlert('Aktifkan walkie terlebih dahulu (toggle ON).', { title:'Walkie OFF', icon:'📞' });
+      return;
+    }
+    if (!currentCh) {
+      arcAlert('Pilih channel terlebih dahulu.', { title:'Channel kosong', icon:'📻' });
+      return;
+    }
+    if (!audioStream) await initMic();
+    if (!audioStream) {
+      arcAlert('Mikrofon tidak tersedia.', { title:'Error Mic', icon:'🎤' });
+      return;
+    }
+
+    _unlockAudio(); // join call = user gesture
+    callActive = true;
+    callMuted  = false;
+    _callStart = Date.now();
+
+    document.getElementById('call-idle').style.display   = 'none';
+    document.getElementById('call-active').style.display = '';
+    _updateMuteUI();
+    _startCallDurTimer();
+
+    // Daftarkan ke server
+    wSocket.emit('walkie-call-join', { channel: currentCh, name: currentUser.name, role: currentUser.role });
+
+    // Mulai stream terus-menerus
+    _callStreamStart();
+  }
+
+  function _callStreamStart() {
+    if (!audioStream || callMuted || !callActive) return;
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+
+    const mime = _getMime();
+    let seq = 0, isFirst = true;
+
+    try { _callRec = new MediaRecorder(audioStream, mime ? { mimeType: mime } : {}); }
+    catch(_) { _callRec = new MediaRecorder(audioStream); }
+
+    _callRec.ondataavailable = async ev => {
+      if (ev.data.size === 0 || !callActive || callMuted) return;
+      const ab = await ev.data.arrayBuffer();
+      // Emit keying pada chunk pertama setiap sesi agar penerima init MSE
+      if (isFirst) {
+        wSocket.emit('walkie-keying', { channel: currentCh, name: currentUser.name, role: currentUser.role });
+        _mseInit(); // inisiasi receiver lain — ini untuk diri sendiri jika loop back tidak dipakai
+        isFirst = false;
+      }
+      wSocket.emit('walkie-chunk', {
+        channel: currentCh, chunk: ab, seq: seq++,
+        mimeType: _callRec.mimeType, isFirst: seq === 1
+      });
+    };
+
+    _callRec.onstop = () => {
+      if (callActive && !callMuted) {
+        // Auto restart agar stream tidak terputus
+        setTimeout(_callStreamStart, 100);
+      } else {
+        wSocket.emit('walkie-unkey', { channel: currentCh });
+      }
+    };
+
+    _callRec.start(300); // 300ms chunks untuk intercom
+  }
+
+  function _callStreamStop() {
+    if (_callRec && _callRec.state !== 'inactive') {
+      _callRec.stop();
+    }
+    _callRec = null;
+  }
+
+  function toggleMute() {
+    callMuted = !callMuted;
+    _updateMuteUI();
+    if (callMuted) {
+      _callStreamStop(); // stop kirim suara
+      wSocket.emit('walkie-unkey', { channel: currentCh });
+    } else {
+      _callStreamStart(); // mulai kirim lagi
+    }
+  }
+
+  function _updateMuteUI() {
+    const btn  = document.getElementById('call-mute-btn');
+    const icon = document.getElementById('call-mute-icon');
+    const lbl  = document.getElementById('call-mute-lbl');
+    if (callMuted) {
+      btn.classList.add('muted');
+      icon.className = 'ti ti-microphone-off';
+      if (lbl) lbl.textContent = 'MUTED';
+    } else {
+      btn.classList.remove('muted');
+      icon.className = 'ti ti-microphone';
+      if (lbl) lbl.textContent = 'MIC ON';
+    }
+  }
+
+  function endCall() {
+    callActive = false;
+    callMuted  = false;
+    _callStreamStop();
+    clearInterval(_callDurInt);
+    wSocket.emit('walkie-call-leave', { channel: currentCh });
+    wSocket.emit('walkie-unkey', { channel: currentCh });
+    document.getElementById('call-idle').style.display   = '';
+    document.getElementById('call-active').style.display = 'none';
+    document.getElementById('call-members-list').innerHTML = '';
+    document.getElementById('call-dur').textContent = '0:00';
+    _mseDestroy();
+  }
+
+  function _startCallDurTimer() {
+    clearInterval(_callDurInt);
+    _callDurInt = setInterval(() => {
+      if (!callActive) { clearInterval(_callDurInt); return; }
+      const s = Math.floor((Date.now() - _callStart) / 1000);
+      const m = Math.floor(s / 60);
+      document.getElementById('call-dur').textContent = m + ':' + String(s % 60).padStart(2, '0');
+    }, 500);
+  }
+
+  function _renderCallChips(members) {
+    const el = document.getElementById('call-members-list');
+    if (!el) return;
+    el.innerHTML = members.map(m => {
+      const color = RC[m.role] || '#639922';
+      const isMe  = m.name === currentUser?.name;
+      return `<div class="call-chip" style="border-color:${color};color:${color};background:rgba(0,0,0,.2);">
+        <div class="call-chip-dot" style="background:${color};"></div>
+        ${m.name}${isMe ? ' <span style="font-size:7px;opacity:.6;">(kamu)</span>' : ''}
+      </div>`;
+    }).join('') || '<div style="font-size:9px;color:var(--ash);">Menunggu peserta lain…</div>';
   }
 
   function setMembers(count) {
@@ -581,6 +912,7 @@
     if (!wtActive) { arcAlert('Aktifkan walkie terlebih dahulu dengan toggle ON di atas.', { title:'Walkie OFF', icon:'📻' }); return; }
     if (!audioStream || isRecording || !currentCh) return;
     if (audioCtx?.state === 'suspended') audioCtx.resume();
+    _unlockAudio(); // PTT = user gesture, unlock audio
 
     audioChunks = []; _chunkSeq = 0; _isFirst = true;
     const mime    = _getMime();
@@ -717,13 +1049,11 @@
   }
 
   function _mseInit() {
-    // Reset state lama dulu
     _mseDestroy();
 
-    // Pilih codec yang didukung browser
-    const mimes = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+    const mimes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
     const mime  = mimes.find(_mseSupports) || '';
-    if (!mime) return; // fallback ke blob di onReceive
+    if (!mime) { _mse.active = false; return; }
 
     _mse.mime   = mime;
     _mse.active = true;
@@ -735,18 +1065,35 @@
 
     const audio = new Audio();
     audio.src = URL.createObjectURL(ms);
-    audio.autoplay = true;
+    audio.volume = 1;
     _mse.audio = audio;
 
     ms.addEventListener('sourceopen', () => {
       try {
         const sb = ms.addSourceBuffer(mime);
-        sb.mode = 'sequence';  // penting untuk streaming tanpa timestamp
+        try { sb.mode = 'sequence'; } catch(_) {} // tidak semua browser support
         _mse.sb = sb;
         sb.addEventListener('updateend', _mseFlush);
         _mse.ready = true;
-        audio.play().catch(e => console.warn('MSE play:', e));
-        _mseFlush(); // flush chunk yang sudah antri
+        _mseFlush();
+
+        // Play audio — harus setelah unlock, atau tambah ke queue jika belum unlock
+        const doPlay = () => audio.play().catch(e => {
+          if (e.name === 'NotAllowedError') {
+            // Autoplay masih diblok — minta unlock dulu
+            _audioUnlockQueue.push(() => audio.play().catch(() => {}));
+          }
+        });
+
+        if (_audioUnlocked) {
+          doPlay();
+        } else {
+          // Coba unlock sambil jalan
+          _unlockAudio();
+          // Jika belum berhasil, queue play
+          if (!_audioUnlocked) _audioUnlockQueue.push(doPlay);
+          else doPlay();
+        }
       } catch(e) {
         console.warn('MSE sourceopen error:', e);
         _mse.active = false;
@@ -756,14 +1103,24 @@
 
   function _mseChunk({ chunk, mimeType, isFirst }) {
     if (!_mse.active) return;
-    // Jika format berbeda dari yang diinit, reset MSE
     if (isFirst && mimeType && mimeType !== _mse.mime) {
+      // Format berbeda — reset dan init ulang
       _mseDestroy();
       _mse.mime = mimeType;
       _mseInit();
+      // Tunda sedikit agar sourceopen sempat terjadi
+      setTimeout(() => {
+        _mse.queue.push(chunk instanceof ArrayBuffer ? chunk : new Uint8Array(chunk).buffer);
+        _mseFlush();
+      }, 80);
+      return;
     }
     _mse.queue.push(chunk instanceof ArrayBuffer ? chunk : new Uint8Array(chunk).buffer);
     _mseFlush();
+    // Pastikan audio sedang play
+    if (_mse.audio && _mse.audio.paused && _audioUnlocked) {
+      _mse.audio.play().catch(() => {});
+    }
   }
 
   function _mseFlush() {
@@ -834,15 +1191,24 @@
     document.getElementById('wt-incoming').classList.remove('show');
   }
 
-  // ── Receive audio (blob penuh = untuk history feed) ────────────
+  // ── Receive audio ─────────────────────────────────────────────
+  // walkie-audio tiba SETELAH semua chunks — MSE sudah memainkan audio realtime.
+  // Blob ini hanya untuk history/replay di feed.
   function onReceive({ from, role, audio, mimeType, duration, ts }) {
     offIncoming();
     const mime = mimeType || 'audio/webm;codecs=opus';
-    const blob = new Blob([audio instanceof ArrayBuffer ? audio : new Uint8Array(audio).buffer], { type: mime });
-    _addFeed({ from, role, duration, ts, blob, isSelf: false });
-    // MSE sudah memainkan audio secara realtime via walkie-chunk.
-    // Jika MSE tidak aktif (browser tidak support), play sekarang sebagai fallback.
-    if (!_mse.active) _playBlobAudio(blob);
+    const blob = new Blob(
+      [audio instanceof ArrayBuffer ? audio : new Uint8Array(audio).buffer],
+      { type: mime }
+    );
+    // Tandai: sudah diputar via MSE (no click needed)
+    _addFeed({ from, role, duration, ts, blob, isSelf: false, streamedLive: _mse.active });
+    _mseEnd(); // tutup MSE stream, biarkan audio selesai
+
+    // Fallback: jika MSE tidak support, play blob sekarang
+    if (!_mse.active) {
+      _playBlobAudio(blob).catch(() => {});
+    }
   }
 
   // ── Feed rendering ────────────────────────────────
@@ -887,7 +1253,9 @@
         </div>
         <div class="fi-bars">${bars}</div>
         <span class="fi-dur">${dur}</span>
-        <i class="ti ti-player-play fi-play" id="play-${idx}"></i>
+        ${item.streamedLive
+          ? `<span class="fi-live" title="Diputar langsung (realtime)"><i class="ti ti-repeat" style="font-size:11px;"></i></span>`
+          : `<i class="ti ti-player-play fi-play"></i>`}
       `;
 
       el.addEventListener('click', () => {
