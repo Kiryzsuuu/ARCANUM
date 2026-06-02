@@ -185,6 +185,24 @@
       display:none; animation:wt-pulse .5s ease-in-out infinite;
     }
 
+    /* ── Toggle ON/OFF ─────────────────────── */
+    .wt-toggle {
+      display:flex; align-items:center; gap:8px; flex-shrink:0;
+      background:var(--deep); border:.5px solid var(--border);
+      border-radius:6px; padding:5px 10px; cursor:pointer;
+      font-size:9px; letter-spacing:.06em; color:var(--ash);
+      transition:all .2s; user-select:none;
+    }
+    .wt-toggle.on { border-color:#22cc44; color:#22cc44; background:rgba(34,204,68,.08); }
+    .wt-toggle .tog-dot { width:8px; height:8px; border-radius:50%; background:#444; flex-shrink:0; transition:background .2s; }
+    .wt-toggle.on .tog-dot { background:#22cc44; box-shadow:0 0 6px rgba(34,204,68,.6); }
+    .wt-standby {
+      background:#1a0e04; border-bottom:.5px solid #854F0B;
+      padding:10px 16px; display:none; align-items:center; gap:12px;
+      flex-shrink:0; font-size:11px; color:var(--siaga);
+    }
+    .wt-standby.show { display:flex; }
+
     /* ── Mobile ─────────────────────────────── */
     @media (max-width:640px) {
       .wt-channel-bar { padding:8px 12px; gap:8px; }
@@ -249,6 +267,20 @@
           <div class="wt-members">
             <div class="mem-dot" id="mem-dot"></div>
             <span id="mem-count">0 online</span>
+          </div>
+          <!-- ON/OFF Toggle -->
+          <div class="wt-toggle" id="wt-toggle" onclick="toggleWalkie()">
+            <div class="tog-dot"></div>
+            <span id="tog-label">OFF</span>
+          </div>
+        </div>
+
+        <!-- Standby banner (ON tapi halaman lain) -->
+        <div class="wt-standby" id="wt-standby">
+          <i class="ti ti-radio" style="font-size:18px;color:#22cc44;flex-shrink:0;"></i>
+          <div style="flex:1;">
+            <div style="font-weight:bold;color:#22cc44;">Walkie aktif di latar belakang</div>
+            <div style="font-size:10px;color:var(--ash);margin-top:1px;">Widget PTT muncul di semua halaman. Matikan dengan toggle di atas.</div>
           </div>
         </div>
 
@@ -346,45 +378,85 @@
   const RB = { SA:'#0a1628', ADMIN:'#0a1628', CMD:'#0C1F38', OPS:'#173404', RECON:'#1a0e04', INTEL:'#0a1020', LOG:'#1a1a1a' };
 
   // ── State ────────────────────────────────────────
-  let currentUser    = null;
-  let wSocket        = null;
-  let currentCh      = null;
-  let mediaRecorder  = null;
-  let audioChunks    = [];
-  let audioStream    = null;
-  let analyser       = null;
-  let audioCtx       = null;
-  let vizRaf         = null;
-  let recTimerInt    = null;
-  let recStart       = 0;
-  let isRecording    = false;
-  let isReceiving    = false;
-  let maxDurTimer    = null;
-  let feedItems      = [];
-  let currentAudio   = null;
-  const MAX_REC_S    = 60;
+  const WT_LS      = 'arcanum-walkie';
+  let currentUser  = null;
+  let wSocket      = null;
+  let currentCh    = null;
+  let mediaRecorder= null;
+  let audioChunks  = [];
+  let audioStream  = null;
+  let analyser     = null;
+  let audioCtx     = null;
+  let vizRaf       = null;
+  let recTimerInt  = null;
+  let recStart     = 0;
+  let isRecording  = false;
+  let isReceiving  = false;
+  let maxDurTimer  = null;
+  let feedItems    = [];
+  let currentAudio = null;
+  let wtActive     = false;
+  const MAX_REC_S  = 60;
+
+  function _stGet() { try { return JSON.parse(localStorage.getItem(WT_LS) || 'null'); } catch { return null; } }
+  function _stSave(v) { if (v) localStorage.setItem(WT_LS, JSON.stringify(v)); else localStorage.removeItem(WT_LS); }
 
   // ── Bootstrap ────────────────────────────────────
   async function init() {
     currentUser = await initTopbar('WALKIE TALKIE');
 
+    const saved = _stGet();
+    wtActive = saved?.active === true;
+
     wSocket = io();
     wSocket.on('connect', () => {
       wSocket.emit('register', currentUser.id);
-      if (currentCh) wSocket.emit('walkie-join', { channel: currentCh });
+      if (currentCh && wtActive) wSocket.emit('walkie-join', { channel: currentCh });
     });
-
     wSocket.on('walkie-keying',  ({ from, role }) => onIncoming(from, role));
-    wSocket.on('walkie-unkey',   ()                => offIncoming());
-    wSocket.on('walkie-receive', (data)            => onReceive(data));
-    wSocket.on('walkie-members', ({ count })       => setMembers(count));
+    wSocket.on('walkie-unkey',   ()               => offIncoming());
+    wSocket.on('walkie-receive', (data)           => onReceive(data));
+    wSocket.on('walkie-members', ({ count })      => setMembers(count));
 
-    await loadChannels();
     await initMic();
+    await loadChannels(saved?.channel);
+    _applyToggleUI();
+  }
+
+  // ── ON/OFF Toggle ────────────────────────────────
+  function toggleWalkie() {
+    wtActive = !wtActive;
+    if (wtActive) {
+      _stSave({ active: true, channel: currentCh || '' });
+      if (currentCh && wSocket?.connected) wSocket.emit('walkie-join', { channel: currentCh });
+    } else {
+      _stSave(null);
+      if (wSocket?.connected) wSocket.emit('walkie-join', { channel: '__off__' });
+      offIncoming();
+    }
+    _applyToggleUI();
+  }
+
+  function _applyToggleUI() {
+    const tog = document.getElementById('wt-toggle');
+    const lbl = document.getElementById('tog-label');
+    if (wtActive) {
+      tog.classList.add('on');
+      lbl.textContent = 'ON';
+      if (audioStream) {
+        document.getElementById('ptt-btn').classList.remove('disabled');
+        document.getElementById('ptt-lbl').textContent = 'TAHAN UNTUK BICARA';
+      }
+    } else {
+      tog.classList.remove('on');
+      lbl.textContent = 'OFF';
+      document.getElementById('ptt-btn').classList.add('disabled');
+      document.getElementById('ptt-lbl').textContent = 'AKTIFKAN WALKIE';
+    }
   }
 
   // ── Channels ─────────────────────────────────────
-  async function loadChannels() {
+  async function loadChannels(restoreCh) {
     const sel = document.getElementById('ch-sel');
     try {
       const chs = await api('/api/channels');
@@ -392,7 +464,8 @@
       sel.innerHTML = chs.map(c =>
         `<option value="${c.id}">${c.name.toUpperCase()}</option>`
       ).join('');
-      switchChannel(chs[0].id);
+      const ch = restoreCh && chs.find(c => c.id === restoreCh) ? restoreCh : chs[0].id;
+      switchChannel(ch);
     } catch(_) {
       sel.innerHTML = '<option value="NET-OPEN">NET-OPEN (Default)</option>';
       switchChannel('NET-OPEN');
@@ -400,14 +473,15 @@
   }
 
   function switchChannel(chId) {
-    if (!chId || chId === currentCh) return;
+    if (!chId) return;
     currentCh = chId;
     document.getElementById('ch-sel').value = chId;
     document.getElementById('stat-ch').textContent = 'Channel: ' + chId;
     feedItems = [];
     _renderFeed();
     offIncoming();
-    if (wSocket?.connected) wSocket.emit('walkie-join', { channel: chId });
+    if (wSocket?.connected && wtActive) wSocket.emit('walkie-join', { channel: chId });
+    if (wtActive) _stSave({ active: true, channel: chId });
   }
 
   function setMembers(count) {
@@ -433,18 +507,15 @@
   function _setMic(s) {
     const dot = document.getElementById('mic-dot');
     const txt = document.getElementById('mic-stat');
-    const btn = document.getElementById('ptt-btn');
-    const lbl = document.getElementById('ptt-lbl');
     if (s === 'ok') {
       dot.style.background = '#639922';
-      txt.textContent      = 'Mic: Siap';
-      btn.classList.remove('disabled');
-      lbl.textContent      = 'TAHAN UNTUK BICARA';
+      txt.textContent = 'Mic: Siap';
+      // PTT enabled hanya jika walkie ON
       document.getElementById('mic-denied').classList.remove('show');
     } else {
       dot.style.background = '#E24B4A';
-      txt.textContent      = 'Mic: Ditolak';
-      lbl.textContent      = 'MIC TIDAK TERSEDIA';
+      txt.textContent = 'Mic: Ditolak';
+      document.getElementById('ptt-lbl').textContent = 'MIC TIDAK TERSEDIA';
       document.getElementById('mic-denied').classList.add('show');
     }
   }
@@ -459,7 +530,8 @@
   // ── PTT ───────────────────────────────────────────
   function startPTT(e) {
     e.preventDefault();
-    if (!audioStream || isRecording || isReceiving || !currentCh) return;
+    if (!wtActive) { arcAlert('Aktifkan walkie terlebih dahulu dengan toggle ON di atas.', { title:'Walkie OFF', icon:'📻' }); return; }
+    if (!audioStream || isRecording || !currentCh) return;
     if (audioCtx?.state === 'suspended') audioCtx.resume();
 
     audioChunks   = [];
@@ -578,24 +650,17 @@
   }
   function _stopViz() { cancelAnimationFrame(vizRaf); }
 
-  // ── Incoming ──────────────────────────────────────
+  // ── Incoming (full-duplex: tidak blok PTT) ────────────────────
   function onIncoming(from, role) {
     isReceiving = true;
     document.getElementById('inc-name').textContent = from + (role ? '  [' + role + ']' : '');
     document.getElementById('wt-incoming').classList.add('show');
-    const btn = document.getElementById('ptt-btn');
-    btn.classList.add('receiving');
-    document.getElementById('ptt-lbl').textContent = 'CHANNEL AKTIF';
+    // Full-duplex: PTT tetap bisa digunakan saat orang lain bicara
   }
 
   function offIncoming() {
     isReceiving = false;
     document.getElementById('wt-incoming').classList.remove('show');
-    const btn = document.getElementById('ptt-btn');
-    if (!isRecording) {
-      btn.classList.remove('receiving');
-      document.getElementById('ptt-lbl').textContent = 'TAHAN UNTUK BICARA';
-    }
   }
 
   // ── Receive audio ─────────────────────────────────
@@ -604,11 +669,10 @@
     const mime = mimeType || 'audio/webm';
     const blob = new Blob([audio], { type: mime });
     _addFeed({ from, role, duration, ts, blob, isSelf: false });
-    // Auto-play received transmission
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    // Auto-play — full-duplex: putar langsung tanpa cancel audio sebelumnya
     const url = URL.createObjectURL(blob);
     const aud = new Audio(url);
-    aud.onended = () => { URL.revokeObjectURL(url); currentAudio = null; };
+    aud.onended = () => { URL.revokeObjectURL(url); if (currentAudio === aud) currentAudio = null; };
     aud.play().catch(() => {});
     currentAudio = aud;
   }

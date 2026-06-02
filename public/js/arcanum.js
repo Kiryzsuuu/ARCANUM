@@ -346,6 +346,7 @@ async function initTopbar(pathLabel) {
   injectProfilePanel(user);
   injectThemePicker();
   _injectNavWidget();
+  _startWalkieBg(user);
 
   // Geolocation refresh every 5 minutes (300 000 ms)
   startPositionRefresh();
@@ -372,6 +373,225 @@ async function initTopbar(pathLabel) {
   }
 
   return user;
+}
+
+// ══════════════════════════════════════════════
+//  WALKIE TALKIE BACKGROUND SERVICE
+//  Berjalan di semua halaman saat walkie ON
+// ══════════════════════════════════════════════
+const _WT_LS = 'arcanum-walkie';
+
+function _wtStateGet() {
+  try { return JSON.parse(localStorage.getItem(_WT_LS) || 'null'); } catch { return null; }
+}
+
+async function _startWalkieBg(user) {
+  // Walkie page punya full UI sendiri — background service tidak diperlukan di sana
+  if (location.pathname === '/walkie') return;
+
+  const st = _wtStateGet();
+  if (!st?.active || !st?.channel) return;
+
+  // ── CSS ────────────────────────────────────────────
+  if (!document.getElementById('_wt-bg-css')) {
+    const css = document.createElement('style');
+    css.id = '_wt-bg-css';
+    css.textContent = `
+      #_wt-float {
+        position:fixed; bottom:80px; right:16px; z-index:7800;
+        background:rgba(4,12,22,.97); border:1.5px solid #378ADD;
+        border-radius:12px; padding:12px 14px; width:172px;
+        box-shadow:0 4px 24px rgba(0,0,0,.6); font-family:monospace;
+        display:flex; flex-direction:column; gap:8px;
+        animation:_wtFadeIn .25s ease;
+      }
+      @keyframes _wtFadeIn { from{transform:translateY(12px);opacity:0} to{opacity:1;transform:none} }
+      #_wt-float.receiving { border-color:#22cc44; }
+      #_wt-float.recording { border-color:#E24B4A; }
+      ._wtf-hdr { display:flex; align-items:center; gap:7px; }
+      ._wtf-dot { width:7px; height:7px; border-radius:50%; background:#378ADD; flex-shrink:0; transition:background .2s; }
+      #_wt-float.receiving ._wtf-dot { background:#22cc44; animation:_wtBlink 1s ease-in-out infinite; }
+      #_wt-float.recording ._wtf-dot { background:#E24B4A; animation:_wtBlink .5s ease-in-out infinite; }
+      @keyframes _wtBlink { 0%,100%{opacity:1} 50%{opacity:.2} }
+      ._wtf-ch  { font-size:9px; color:#999; letter-spacing:.06em; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:uppercase; }
+      ._wtf-close { background:none; border:none; color:#555; font-size:18px; cursor:pointer; line-height:1; padding:0; flex-shrink:0; }
+      ._wtf-close:hover { color:#E24B4A; }
+      ._wtf-inc { font-size:9px; color:#22cc44; display:none; letter-spacing:.04em; }
+      #_wt-float.receiving ._wtf-inc { display:block; }
+      ._wtf-ptt {
+        background:rgba(55,138,221,.07); border:1.5px solid #378ADD;
+        border-radius:8px; padding:14px 8px; text-align:center;
+        cursor:pointer; user-select:none; touch-action:none;
+        -webkit-tap-highlight-color:transparent;
+        transition:all .1s; display:flex; flex-direction:column;
+        align-items:center; gap:5px;
+      }
+      ._wtf-ptt:not(.disabled):hover { background:rgba(55,138,221,.15); }
+      ._wtf-ptt.recording { background:rgba(226,75,74,.12); border-color:#E24B4A; animation:_wtPTTRing 1.1s ease-out infinite; }
+      ._wtf-ptt.disabled  { opacity:.35; cursor:not-allowed; }
+      ._wtf-ptt i { font-size:26px; color:#378ADD; pointer-events:none; }
+      ._wtf-ptt.recording i { color:#E24B4A; }
+      ._wtf-ptt span { font-size:8px; color:#666; letter-spacing:.08em; pointer-events:none; }
+      ._wtf-ptt.recording span { color:#E24B4A; }
+      @keyframes _wtPTTRing {
+        0%  { box-shadow:0 0 0 0 rgba(226,75,74,.5); }
+        70% { box-shadow:0 0 0 16px rgba(226,75,74,0); }
+        100%{ box-shadow:0 0 0 0 rgba(226,75,74,0); }
+      }
+      ._wtf-mem { font-size:8px; color:#555; text-align:center; }
+      @media(max-width:640px) { #_wt-float { bottom:72px; right:12px; width:160px; } }
+    `;
+    document.head.appendChild(css);
+  }
+
+  if (document.getElementById('_wt-float')) return;
+
+  // ── Mic ────────────────────────────────────────────
+  let _bgStream   = null;
+  let _bgACtx     = null;
+  let _bgRec      = null;
+  let _bgChunks   = [];
+  let _bgRecStart = 0;
+  let _bgIsRec    = false;
+  let _bgMicOk    = false;
+  let _bgCurAud   = null;
+
+  try {
+    _bgStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    _bgACtx   = new (window.AudioContext || window.webkitAudioContext)();
+    _bgACtx.createMediaStreamSource(_bgStream); // keep context alive
+    _bgMicOk  = true;
+  } catch(_) {}
+
+  // ── Socket ─────────────────────────────────────────
+  const _bgSock = io();
+  _bgSock.on('connect', () => {
+    _bgSock.emit('walkie-join', { channel: st.channel });
+  });
+
+  _bgSock.on('walkie-keying', ({ from, role }) => {
+    const w = document.getElementById('_wt-float');
+    if (!w) return;
+    w.classList.add('receiving');
+    const inc = w.querySelector('._wtf-inc');
+    if (inc) inc.textContent = '🎙 ' + from + (role ? ' [' + role + ']' : '') + ' bicara…';
+    // full-duplex: tidak ubah label PTT saat incoming
+  });
+
+  _bgSock.on('walkie-unkey', () => {
+    const w = document.getElementById('_wt-float');
+    if (!w || _bgIsRec) return;
+    w.classList.remove('receiving');
+    const ptt = w.querySelector('._wtf-ptt');
+    if (ptt) ptt.querySelector('span').textContent = 'TAHAN';
+  });
+
+  _bgSock.on('walkie-receive', ({ from, role, audio, mimeType }) => {
+    const w = document.getElementById('_wt-float');
+    if (w) { w.classList.remove('receiving'); const ptt = w.querySelector('._wtf-ptt'); if (ptt && !_bgIsRec) ptt.querySelector('span').textContent = 'TAHAN'; }
+    const blob = new Blob([audio], { type: mimeType || 'audio/webm' });
+    const url  = URL.createObjectURL(blob);
+    if (_bgCurAud) { _bgCurAud.pause(); _bgCurAud = null; }
+    const aud = new Audio(url);
+    aud.onended = () => { URL.revokeObjectURL(url); _bgCurAud = null; };
+    aud.play().catch(() => {});
+    _bgCurAud = aud;
+  });
+
+  _bgSock.on('walkie-members', ({ count }) => {
+    const el = document.getElementById('_wtf-mem');
+    if (el) el.textContent = count + ' online di channel ini';
+  });
+
+  // ── Widget ─────────────────────────────────────────
+  function _bgGetMime() {
+    for (const t of ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4']) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+  }
+
+  const widget = document.createElement('div');
+  widget.id = '_wt-float';
+  widget.innerHTML = `
+    <div class="_wtf-hdr">
+      <div class="_wtf-dot"></div>
+      <span class="_wtf-ch">${st.channel}</span>
+      <button class="_wtf-close" title="Matikan walkie">×</button>
+    </div>
+    <div class="_wtf-inc"></div>
+    <div class="_wtf-ptt${_bgMicOk ? '' : ' disabled'}">
+      <i class="ti ti-microphone"></i>
+      <span>${_bgMicOk ? 'TAHAN' : 'MIC OFF'}</span>
+    </div>
+    <div class="_wtf-mem" id="_wtf-mem">— online</div>
+  `;
+  document.body.appendChild(widget);
+
+  // Close button
+  widget.querySelector('._wtf-close').onclick = () => {
+    if (_bgIsRec && _bgRec) { _bgRec.stop(); _bgIsRec = false; }
+    if (_bgStream) _bgStream.getTracks().forEach(t => t.stop());
+    if (_bgCurAud) { _bgCurAud.pause(); _bgCurAud = null; }
+    _bgSock.disconnect();
+    localStorage.removeItem(_WT_LS);
+    widget.remove();
+  };
+
+  // PTT events
+  const pttEl = widget.querySelector('._wtf-ptt');
+
+  function _bgStartPTT(e) {
+    e.preventDefault();
+    if (!_bgMicOk || _bgIsRec) return;
+    const cur = _wtStateGet();
+    if (!cur?.active || !cur?.channel) return;
+    if (_bgACtx?.state === 'suspended') _bgACtx.resume();
+
+    _bgChunks = [];
+    const mime = _bgGetMime();
+    try { _bgRec = new MediaRecorder(_bgStream, mime ? { mimeType: mime } : {}); }
+    catch(_) { _bgRec = new MediaRecorder(_bgStream); }
+
+    _bgRec.ondataavailable = ev => { if (ev.data.size > 0) _bgChunks.push(ev.data); };
+    _bgRec.onstop = async () => {
+      if (!_bgChunks.length) return;
+      const blob = new Blob(_bgChunks, { type: _bgRec.mimeType || 'audio/webm' });
+      const dur  = (Date.now() - _bgRecStart) / 1000;
+      const ab   = await blob.arrayBuffer();
+      const ch   = _wtStateGet()?.channel;
+      if (!ch) return;
+      _bgSock.emit('walkie-audio', { channel: ch, audio: ab, mimeType: _bgRec.mimeType || 'audio/webm', name: user.name, role: user.role, duration: Math.round(dur * 10) / 10 });
+      _bgSock.emit('walkie-unkey', { channel: ch });
+    };
+
+    _bgRec.start(100);
+    _bgIsRec   = true;
+    _bgRecStart = Date.now();
+
+    pttEl.classList.add('recording');
+    pttEl.querySelector('span').textContent = 'BICARA…';
+    widget.classList.add('recording');
+    widget.classList.remove('receiving');
+    _bgSock.emit('walkie-keying', { channel: cur.channel, name: user.name, role: user.role });
+  }
+
+  function _bgStopPTT(e) {
+    if (!_bgIsRec || !_bgRec) return;
+    e?.preventDefault?.();
+    _bgRec.stop();
+    _bgIsRec = false;
+    pttEl.classList.remove('recording');
+    pttEl.querySelector('span').textContent = 'TAHAN';
+    widget.classList.remove('recording');
+  }
+
+  pttEl.addEventListener('mousedown',   _bgStartPTT);
+  pttEl.addEventListener('mouseup',     _bgStopPTT);
+  pttEl.addEventListener('mouseleave',  _bgStopPTT);
+  pttEl.addEventListener('touchstart',  _bgStartPTT, { passive: false });
+  pttEl.addEventListener('touchend',    _bgStopPTT,  { passive: false });
+  pttEl.addEventListener('touchcancel', _bgStopPTT,  { passive: false });
 }
 
 // ══════════════════════════════════════════════
