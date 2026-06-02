@@ -32,7 +32,7 @@
     .no-contacts { padding:30px; text-align:center; color:var(--ash); font-size:11px; }
 
     /* ── Chat header ── */
-    .ch-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+    .ch-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:8px 14px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
     .ch-back { background:none; border:none; color:var(--signal); font-size:18px; cursor:pointer; padding:4px; display:none; }
     .ch-avatar { width:40px; height:40px; border-radius:50%; background:var(--steel); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; color:var(--frost); flex-shrink:0; }
     .ch-name { font-size:14px; font-weight:bold; color:var(--frost); }
@@ -152,6 +152,11 @@
       .chat-panel { position:absolute; inset:0; top:40px; bottom:52px; transform:translateX(100%); transition:transform .25s; }
       .chat-panel.show { transform:translateX(0); }
       .ch-back { display:flex !important; }
+      .ch-avatar { width:32px; height:32px; font-size:11px; }
+      .ch-name { font-size:12px; }
+      .ch-status { font-size:9px; }
+      .ch-action-btn { width:28px; height:28px; font-size:14px; }
+      .input-wrap { padding:8px 10px; }
       .emoji-picker { bottom:52px; }
       .attach-popup { bottom:52px; left:12px; }
     }
@@ -221,8 +226,8 @@
                 <div class="ch-status" id="chat-status">online</div>
               </div>
               <div class="ch-actions">
-                <div class="ch-action-btn" title="Call" onclick="alert('Voice call — coming soon')"><i class="ti ti-phone"></i></div>
-                <div class="ch-action-btn" title="Search" onclick="alert('Search in conversation — coming soon')"><i class="ti ti-search"></i></div>
+                <div class="ch-action-btn" title="Walkie Talkie" onclick="startDMWalkie()" id="dm-walkie-btn"><i class="ti ti-radio"></i></div>
+                <div class="ch-action-btn" title="Hapus percakapan" onclick="clearDMHistory()"><i class="ti ti-trash"></i></div>
               </div>
             </div>
 
@@ -1010,6 +1015,36 @@
     if (!e.target.closest('#attach-popup') && !e.target.closest('#attach-btn')) closeAttachMenu();
     if (!e.target.closest('#ctx-menu')) closeCtxMenu();
   });
+
+  // ── DM Walkie shortcut ──────────────────────────
+  function startDMWalkie() {
+    // Buka walkie talkie di tab baru, sambil set channel ke DM partner
+    const partner = currentChatId;
+    if (!partner) return;
+    localStorage.setItem('arcanum-nav', JSON.stringify({})); // clear nav
+    // Set walkie channel ke "DM-{partner}" (private channel)
+    const dmCh = 'DM-' + [currentUser.id, partner].sort().join('-');
+    const cur = JSON.parse(localStorage.getItem('arcanum-walkie') || '{}');
+    localStorage.setItem('arcanum-walkie', JSON.stringify({ ...cur, active: true, channel: dmCh }));
+    window.location.href = '/walkie';
+  }
+
+  // ── Clear DM history ─────────────────────────────
+  async function clearDMHistory() {
+    if (!currentChatId) return;
+    const ok = await arcConfirm(
+      'Hapus semua pesan dengan <b>' + (document.getElementById('chat-name')?.textContent || 'operator ini') + '</b>?<br><small style="color:var(--ash);">Pesan hanya dihapus dari tampilan kamu, tidak dari pihak lain.</small>',
+      { title: 'Hapus Percakapan', icon: '🗑', okText: 'Hapus', danger: true }
+    );
+    if (!ok) return;
+    // Clear from UI
+    document.getElementById('messages').innerHTML = '';
+    // Archive: simpan ke localStorage (tidak dihapus dari DB)
+    const archived = JSON.parse(localStorage.getItem('dm-archived') || '[]');
+    if (!archived.includes(currentChatId)) archived.push(currentChatId);
+    localStorage.setItem('dm-archived', JSON.stringify(archived));
+    showToast('Percakapan disembunyikan');
+  }
 
   init();
   </script>

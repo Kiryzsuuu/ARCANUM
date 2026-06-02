@@ -207,6 +207,14 @@ io.on('connection', (socket) => {
     io.to(`walkie:${channel}`).emit('walkie-call-members', { channel, members });
   });
 
+  // PCM realtime — teruskan segera, latensi minimum
+  socket.on('walkie-pcm', ({ channel, pcm, seq, sampleRate }) => {
+    socket.to(`walkie:${channel}`).emit('walkie-pcm', {
+      from: socket._wName || '?', role: socket._wRole || '',
+      pcm, seq, sampleRate
+    });
+  });
+
   // Streaming chunk realtime — teruskan segera tanpa buffer
   socket.on('walkie-chunk', ({ channel, chunk, seq, mimeType, isFirst }) => {
     socket.to(`walkie:${channel}`).emit('walkie-chunk', {

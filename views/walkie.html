@@ -236,17 +236,25 @@
     .call-chip.speaking { animation:wt-pulse .6s ease-in-out infinite; }
 
     .call-controls { display:flex; align-items:center; gap:14px; }
-    .call-ctrl-btn {
-      width:54px; height:54px; border-radius:50%; display:flex;
-      align-items:center; justify-content:center; font-size:22px;
-      cursor:pointer; border:none; transition:all .12s;
-      -webkit-tap-highlight-color:transparent;
+    /* ── Voice Controls (Discord style) ──── */
+    .vc-controls { display:flex; align-items:flex-end; gap:10px; justify-content:center; flex-wrap:wrap; }
+    .vc-btn {
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+      background:var(--deep); border:1.5px solid var(--border);
+      border-radius:10px; padding:10px 14px; cursor:pointer;
+      color:var(--mist); font-family:var(--font);
+      transition:all .12s; min-width:54px; -webkit-tap-highlight-color:transparent;
     }
-    .call-ctrl-btn:hover { opacity:.85; transform:scale(1.05); }
-    .btn-mute  { background:var(--deep); border:1.5px solid var(--border); color:var(--mist); }
-    .btn-mute.muted { background:rgba(239,159,39,.1); border-color:#EF9F27; color:#EF9F27; }
-    .btn-end   { background:rgba(226,75,74,.15); border:1.5px solid #E24B4A; color:#E24B4A; width:64px; height:64px; font-size:26px; }
-    .btn-end:hover { background:rgba(226,75,74,.3); }
+    .vc-btn i { font-size:20px; }
+    .vc-btn span { font-size:7px; letter-spacing:.07em; }
+    .vc-btn:hover { border-color:var(--cmd); color:var(--frost); background:var(--steel); }
+    .vc-active-red { border-color:#E24B4A !important; color:#E24B4A !important; background:rgba(226,75,74,.1) !important; }
+    .vc-btn-end {
+      background:rgba(226,75,74,.15); border-color:#E24B4A; color:#E24B4A;
+      padding:12px 20px;
+    }
+    .vc-btn-end i { font-size:24px; }
+    .vc-btn-end:hover { background:rgba(226,75,74,.35); }
     .call-dur  { font-size:11px; color:var(--ash); font-family:var(--font); letter-spacing:.06em; min-width:40px; text-align:center; }
 
     /* ── Toggle ON/OFF ─────────────────────── */
@@ -484,23 +492,30 @@
                 <div class="call-live-row">
                   <div class="call-live-badge">
                     <div class="call-live-dot"></div>
-                    INTERCOM AKTIF
+                    <span id="call-ch-display">INTERCOM</span>
                   </div>
                   <div class="call-dur" id="call-dur">0:00</div>
                 </div>
-                <!-- Participant chips -->
+                <!-- Participants -->
                 <div class="call-members-wrap" id="call-members-list"></div>
-                <!-- Controls -->
-                <div class="call-controls">
-                  <div>
-                    <button class="call-ctrl-btn btn-mute" id="call-mute-btn" onclick="toggleMute()" title="Mute">
-                      <i class="ti ti-microphone" id="call-mute-icon"></i>
-                    </button>
-                    <div style="font-size:8px;text-align:center;color:var(--ash);margin-top:4px;" id="call-mute-lbl">MIC ON</div>
+                <!-- Discord-like controls -->
+                <div class="vc-controls">
+                  <div class="vc-btn" id="vc-mute" onclick="toggleMute()">
+                    <i class="ti ti-microphone" id="vc-mute-icon"></i>
+                    <span id="vc-mute-lbl">MIC</span>
                   </div>
-                  <button class="call-ctrl-btn btn-end" onclick="endCall()" title="Hang up">
+                  <div class="vc-btn" id="vc-deaf" onclick="toggleDeafen()">
+                    <i class="ti ti-headphones" id="vc-deaf-icon"></i>
+                    <span id="vc-deaf-lbl">DENGAR</span>
+                  </div>
+                  <div class="vc-btn" onclick="openSpeakerPicker()">
+                    <i class="ti ti-volume"></i>
+                    <span>SPK</span>
+                  </div>
+                  <div class="vc-btn vc-btn-end" onclick="endCall()">
                     <i class="ti ti-phone-off"></i>
-                  </button>
+                    <span>END</span>
+                  </div>
                 </div>
               </div>
 
@@ -549,47 +564,187 @@
   let wtActive     = false;
   const MAX_REC_S  = 60;
 
-  // ── Streaming state (MSE realtime) ───────────────
-  let _chunkSeq    = 0;
-  let _isFirst     = true;
-  const _mse = { audio:null, source:null, sb:null, queue:[], ready:false, active:false, mime:'' };
+  // ══════════════════════════════════════════════════
+  //  PCM REALTIME AUDIO — tidak ada masalah autoplay
+  // ══════════════════════════════════════════════════
 
-  // ── Audio unlock ──────────────────────────────────
-  let _audioUnlocked   = false;
-  let _audioUnlockQueue = [];   // callbacks waiting for unlock
+  // Sender state
+  let _pcmCtx    = null;
+  let _pcmProc   = null;
+  let _pcmSeq    = 0;
+  let _pcmActive = false;   // apakah sedang kirim audio
 
-  function _unlockAudio(fromBanner) {
-    if (_audioUnlocked) {
-      if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+  // Receiver state
+  let _rxCtx     = null;
+  let _rxGain    = null;
+  let _rxDest    = null;
+  let _rxAudio   = null;
+  let _rxNextTime = 0;
+
+  // Voice mode state
+  let _muteState   = false;
+  let _deafenState = false;
+  let _speakerId   = '';    // deviceId output speaker
+
+  // ── PCM Capture (sender) ──────────────────────────
+  function _pcmStart() {
+    if (!audioStream || _pcmActive) return;
+    _pcmActive = true;
+    _pcmSeq    = 0;
+
+    // Buat AudioContext 16kHz untuk efisiensi bandwidth
+    if (!_pcmCtx || _pcmCtx.state === 'closed') {
+      _pcmCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    }
+    if (_pcmCtx.state === 'suspended') _pcmCtx.resume();
+
+    const src  = _pcmCtx.createMediaStreamSource(audioStream);
+    _pcmProc   = _pcmCtx.createScriptProcessor(512, 1, 1);
+    src.connect(_pcmProc);
+    _pcmProc.connect(_pcmCtx.destination);
+
+    let sentFirst = false;
+    _pcmProc.onaudioprocess = (e) => {
+      if (!_pcmActive || _muteState || !currentCh || !wtActive) return;
+      const samples = e.inputBuffer.getChannelData(0);
+      const int16   = new Int16Array(samples.length);
+      for (let i = 0; i < samples.length; i++) {
+        int16[i] = Math.max(-32768, Math.min(32767, samples[i] * 32768));
+      }
+      if (!sentFirst) {
+        wSocket.emit('walkie-keying', { channel: currentCh, name: currentUser.name, role: currentUser.role });
+        sentFirst = true;
+      }
+      wSocket.emit('walkie-pcm', { channel: currentCh, pcm: int16.buffer, seq: _pcmSeq++, sampleRate: 16000 });
+    };
+  }
+
+  function _pcmStop() {
+    _pcmActive = false;
+    if (_pcmProc) { _pcmProc.disconnect(); _pcmProc = null; }
+    if (currentCh && wSocket?.connected) wSocket.emit('walkie-unkey', { channel: currentCh });
+  }
+
+  // ── PCM Receiver ──────────────────────────────────
+  function _rxEnsure() {
+    if (_rxCtx && _rxCtx.state !== 'closed') {
+      if (_rxCtx.state === 'suspended') _rxCtx.resume();
       return;
     }
-    // Play a near-silent audio to satisfy autoplay policy
-    const sil = new Audio();
-    sil.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQAAAAA=';
-    sil.volume = 0.001;
-    sil.play().then(() => {
-      _audioUnlocked = true;
-      document.getElementById('audio-unlock-bar')?.remove();
-      if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
-      // Run queued callbacks
-      const q = _audioUnlockQueue.splice(0);
-      q.forEach(fn => { try { fn(); } catch(_) {} });
-      // If MSE audio is waiting, start it
-      if (_mse.audio) _mse.audio.play().catch(() => {});
-    }).catch(() => {
-      if (fromBanner) {
-        // Try alternative: create AudioContext directly
-        try {
-          const tmp = new (window.AudioContext || window.webkitAudioContext)();
-          tmp.resume().then(() => {
-            _audioUnlocked = true;
-            document.getElementById('audio-unlock-bar')?.remove();
-            const q = _audioUnlockQueue.splice(0);
-            q.forEach(fn => { try { fn(); } catch(_) {} });
-          });
-        } catch(_) {}
-      }
+    _rxCtx  = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    _rxGain = _rxCtx.createGain();
+    _rxGain.gain.value = _deafenState ? 0 : 1;
+
+    // Route melalui HTML Audio agar bisa setSinkId (speaker selection)
+    _rxDest  = _rxCtx.createMediaStreamDestination();
+    _rxGain.connect(_rxDest);
+
+    _rxAudio = new Audio();
+    _rxAudio.srcObject = _rxDest.stream;
+    if (_speakerId && _rxAudio.setSinkId) _rxAudio.setSinkId(_speakerId).catch(() => {});
+    _rxAudio.play().catch(() => {
+      // Jika diblok, retry pada interaksi berikutnya
+      const retry = () => _rxAudio?.play().catch(() => {});
+      document.addEventListener('click',    retry, { once: true });
+      document.addEventListener('touchend', retry, { once: true });
     });
+    _rxNextTime = 0;
+  }
+
+  function _rxPlayPCM({ pcm, sampleRate }) {
+    if (_deafenState) return;
+    _rxEnsure();
+
+    const sr    = sampleRate || 16000;
+    const int16 = new Int16Array(pcm instanceof ArrayBuffer ? pcm : new Uint8Array(pcm).buffer);
+    const f32   = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
+
+    const buf   = _rxCtx.createBuffer(1, f32.length, sr);
+    buf.getChannelData(0).set(f32);
+
+    const srcNode = _rxCtx.createBufferSource();
+    srcNode.buffer = buf;
+    srcNode.connect(_rxGain);
+
+    const now = _rxCtx.currentTime;
+    if (_rxNextTime < now + 0.04) _rxNextTime = now + 0.04; // 40ms anti-jitter buffer
+    srcNode.start(_rxNextTime);
+    _rxNextTime += buf.duration;
+  }
+
+  function _rxReset() { _rxNextTime = 0; }
+
+  // ── Mute / Deafen / Speaker ───────────────────────
+  function toggleMuteWalkie() {
+    _muteState = !_muteState;
+    _updateVoiceUI();
+  }
+
+  function toggleDeafen() {
+    _deafenState = !_deafenState;
+    if (_deafenState) _muteState = true; // deafen juga mute
+    if (_rxGain) _rxGain.gain.value = _deafenState ? 0 : 1;
+    _updateVoiceUI();
+  }
+
+  async function openSpeakerPicker() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter(d => d.kind === 'audiooutput');
+      if (!outputs.length) { arcAlert('Tidak ada speaker tambahan yang terdeteksi.', { title:'Speaker', icon:'🔊' }); return; }
+
+      const list = outputs.map((d, i) =>
+        `<div class="sr-item" onclick="_setSpeaker('${d.deviceId}');document.getElementById('arcanum-dialog-overlay').classList.remove('show')">
+          <span class="sr-icon">🔊</span>
+          <div class="sr-body">
+            <div class="sr-name">${d.label || 'Speaker ' + (i+1)}</div>
+            <div class="sr-type">${d.deviceId === _speakerId ? '✓ Aktif' : ''}</div>
+          </div>
+        </div>`
+      ).join('');
+      arcAlert(list, { title: 'Pilih Speaker', icon: '🔊', okText: 'Tutup' });
+    } catch(e) {
+      arcAlert('Tidak dapat mengakses daftar perangkat audio.', { title:'Error', icon:'⚠' });
+    }
+  }
+
+  function _setSpeaker(deviceId) {
+    _speakerId = deviceId;
+    if (_rxAudio?.setSinkId) _rxAudio.setSinkId(deviceId).catch(() => {});
+  }
+
+  function _updateVoiceUI() {
+    // Mute button
+    const muteBtn  = document.getElementById('vc-mute');
+    const muteIcon = document.getElementById('vc-mute-icon');
+    const muteLbl  = document.getElementById('vc-mute-lbl');
+    if (muteBtn) muteBtn.classList.toggle('vc-active-red', _muteState);
+    if (muteIcon) muteIcon.className = _muteState ? 'ti ti-microphone-off' : 'ti ti-microphone';
+    if (muteLbl) muteLbl.textContent = _muteState ? 'MUTED' : 'MIC';
+
+    // Deafen button
+    const deafBtn  = document.getElementById('vc-deaf');
+    const deafIcon = document.getElementById('vc-deaf-icon');
+    const deafLbl  = document.getElementById('vc-deaf-lbl');
+    if (deafBtn) deafBtn.classList.toggle('vc-active-red', _deafenState);
+    if (deafIcon) deafIcon.className = _deafenState ? 'ti ti-headphones-off' : 'ti ti-headphones';
+    if (deafLbl) deafLbl.textContent = _deafenState ? 'DEAF' : 'DENGAR';
+
+    // PTT mute indicator
+    const pttLbl = document.getElementById('ptt-lbl');
+    if (pttLbl && !isRecording) {
+      pttLbl.textContent = !wtActive ? 'AKTIFKAN WALKIE'
+        : _muteState ? 'MIC MUTED'
+        : 'TAHAN UNTUK BICARA';
+    }
+  }
+
+  // Backward compat — _unlockAudio sekarang tidak perlu buat MSE
+  function _unlockAudio() {
+    document.getElementById('audio-unlock-bar')?.remove();
+    if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+    _rxEnsure(); // pastikan receiver context siap
   }
 
   function _stGet() { try { return JSON.parse(localStorage.getItem(WT_LS) || 'null'); } catch { return null; } }
@@ -614,9 +769,9 @@
       wSocket.emit('register', currentUser.id);
       if (currentCh && wtActive) wSocket.emit('walkie-join', { channel: currentCh });
     });
-    wSocket.on('walkie-keying',  ({ from, role }) => { onIncoming(from, role); _mseInit(); });
-    wSocket.on('walkie-chunk',   (data)           => _mseChunk(data));
-    wSocket.on('walkie-unkey',   ()               => { offIncoming(); _mseEnd(); });
+    wSocket.on('walkie-keying',  ({ from, role }) => { onIncoming(from, role); _rxEnsure(); });
+    wSocket.on('walkie-pcm',     (data)           => _rxPlayPCM(data));
+    wSocket.on('walkie-unkey',   ()               => { offIncoming(); _rxReset(); });
     wSocket.on('walkie-receive', (data)           => onReceive(data));
     wSocket.on('walkie-members',      ({ count })   => setMembers(count));
     wSocket.on('walkie-call-members', ({ members }) => _renderCallChips(members));
@@ -746,7 +901,10 @@
 
     document.getElementById('call-idle').style.display   = 'none';
     document.getElementById('call-active').style.display = '';
-    _updateMuteUI();
+    const chDisp = document.getElementById('call-ch-display');
+    if (chDisp) chDisp.textContent = currentCh || 'INTERCOM';
+    _muteState = false; _deafenState = false;
+    _updateVoiceUI();
     _startCallDurTimer();
 
     // Daftarkan ke server
@@ -757,58 +915,28 @@
   }
 
   function _callStreamStart() {
-    if (!audioStream || callMuted || !callActive) return;
-    if (audioCtx?.state === 'suspended') audioCtx.resume();
-
-    const mime = _getMime();
-    let seq = 0, isFirst = true;
-
-    try { _callRec = new MediaRecorder(audioStream, mime ? { mimeType: mime } : {}); }
-    catch(_) { _callRec = new MediaRecorder(audioStream); }
-
-    _callRec.ondataavailable = async ev => {
-      if (ev.data.size === 0 || !callActive || callMuted) return;
-      const ab = await ev.data.arrayBuffer();
-      // Emit keying pada chunk pertama setiap sesi agar penerima init MSE
-      if (isFirst) {
-        wSocket.emit('walkie-keying', { channel: currentCh, name: currentUser.name, role: currentUser.role });
-        _mseInit(); // inisiasi receiver lain — ini untuk diri sendiri jika loop back tidak dipakai
-        isFirst = false;
-      }
-      wSocket.emit('walkie-chunk', {
-        channel: currentCh, chunk: ab, seq: seq++,
-        mimeType: _callRec.mimeType, isFirst: seq === 1
-      });
-    };
-
-    _callRec.onstop = () => {
-      if (callActive && !callMuted) {
-        // Auto restart agar stream tidak terputus
-        setTimeout(_callStreamStart, 100);
-      } else {
-        wSocket.emit('walkie-unkey', { channel: currentCh });
-      }
-    };
-
-    _callRec.start(300); // 300ms chunks untuk intercom
+    if (!callActive || _muteState) return;
+    _pcmStart(); // PCM streaming langsung realtime
   }
 
   function _callStreamStop() {
-    if (_callRec && _callRec.state !== 'inactive') {
-      _callRec.stop();
-    }
-    _callRec = null;
+    _pcmStop();
   }
 
   function toggleMute() {
-    callMuted = !callMuted;
-    _updateMuteUI();
-    if (callMuted) {
-      _callStreamStop(); // stop kirim suara
-      wSocket.emit('walkie-unkey', { channel: currentCh });
+    toggleMuteWalkie(); // reuse fungsi global
+    if (_muteState) {
+      _callStreamStop();
     } else {
-      _callStreamStart(); // mulai kirim lagi
+      _callStreamStart();
     }
+    // Update call UI mute button juga
+    const btn  = document.getElementById('call-mute-btn');
+    const icon = document.getElementById('call-mute-icon');
+    const lbl  = document.getElementById('call-mute-lbl');
+    if (btn)  btn.classList.toggle('muted', _muteState);
+    if (icon) icon.className = _muteState ? 'ti ti-microphone-off' : 'ti ti-microphone';
+    if (lbl)  lbl.textContent = _muteState ? 'MUTED' : 'MIC ON';
   }
 
   function _updateMuteUI() {
@@ -963,7 +1091,8 @@
     document.getElementById('ptt-viz').style.display = '';
     document.getElementById('rec-timer').style.display = '';
 
-    wSocket.emit('walkie-keying', { channel: currentCh, name: currentUser.name, role: currentUser.role });
+    // PCM streaming realtime (untuk didengar pihak lain langsung)
+    _pcmStart();
     _startViz();
     _startTimer();
 
@@ -980,11 +1109,12 @@
     clearTimeout(maxDurTimer);
     document.getElementById('max-warn').style.display = 'none';
     mediaRecorder.stop();
+    _pcmStop(); // stop PCM streaming
     isRecording = false;
 
     const btn = document.getElementById('ptt-btn');
     btn.classList.remove('recording');
-    document.getElementById('ptt-lbl').textContent  = 'TAHAN UNTUK BICARA';
+    document.getElementById('ptt-lbl').textContent  = _muteState ? 'MIC MUTED' : 'TAHAN UNTUK BICARA';
     document.getElementById('ptt-viz').style.display  = 'none';
     document.getElementById('rec-timer').style.display = 'none';
     _stopViz();
