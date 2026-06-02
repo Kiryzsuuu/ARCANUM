@@ -37,12 +37,7 @@
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     select.field-select { background:var(--bg-input); border:.5px solid var(--cmd); border-radius:var(--radius-md); height:38px; color:var(--frost); font-family:var(--font); font-size:12px; padding:0 10px; outline:none; width:100%; }
     select.field-select:focus { border-color:var(--signal); }
-    .confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
-    .confirm-box { background:var(--bg-panel); border:.5px solid #A32D2D; border-radius:8px; width:100%; max-width:360px; padding:20px; }
-    .confirm-title { font-size:13px; font-weight:bold; color:var(--threat); margin-bottom:8px; }
-    .confirm-msg { font-size:11px; color:var(--mist); margin-bottom:16px; line-height:1.6; }
-    .confirm-actions { display:flex; justify-content:flex-end; gap:8px; }
-    .toast { position:fixed; bottom:20px; right:20px; background:var(--deep); border:.5px solid var(--cmd); border-radius:6px; padding:10px 16px; font-size:11px; color:var(--frost); z-index:2000; display:none; max-width:300px; }
+.toast { position:fixed; bottom:20px; right:20px; background:var(--deep); border:.5px solid var(--cmd); border-radius:6px; padding:10px 16px; font-size:11px; color:var(--frost); z-index:2000; display:none; max-width:300px; }
     .toast.error { background:#1a0505; border-color:#A32D2D; color:var(--threat); }
     .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
     @media (max-width:600px) { .stats-row { grid-template-columns:1fr 1fr; } .form-row { grid-template-columns:1fr; } }
@@ -114,7 +109,7 @@
           <!-- Stats row -->
           <div class="stats-row" id="stats-row">
             <div class="stat-card"><div class="stat-num" id="s-total">--</div><div class="stat-label">Total operators</div></div>
-            <div class="stat-card"><div class="stat-num text-ops" id="s-active">--</div><div class="stat-label">Active</div></div>
+            <div class="stat-card"><div class="stat-num text-ops" id="s-active">--</div><div class="stat-label">Online</div></div>
             <div class="stat-card"><div class="stat-num text-siaga" id="s-inactive">--</div><div class="stat-label">Inactive</div></div>
           </div>
 
@@ -271,17 +266,6 @@
     </div>
   </div>
 
-  <!-- Confirm deactivate -->
-  <div class="confirm-overlay" id="confirm-overlay" style="display:none;">
-    <div class="confirm-box">
-      <div class="confirm-title"><i class="ti ti-alert-triangle" aria-hidden="true"></i> Confirm Deactivation</div>
-      <div class="confirm-msg" id="confirm-msg">Are you sure you want to deactivate this operator?</div>
-      <div class="confirm-actions">
-        <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
-        <button class="btn btn-danger" id="confirm-ok">Deactivate</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Map Picker Modal -->
   <div id="map-picker-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);align-items:center;justify-content:center;padding:12px;">
@@ -472,6 +456,7 @@
         addBtn.onclick = () => { if (currentTab === 'operators') openAddModal(); else openInviteModal(); };
       }
       await loadOperators();
+      setInterval(loadOperators, 30000); // refresh status setiap 30 detik
 
       // Auto-buka tab dari localStorage (misal dari link di grid page)
       const savedTab = localStorage.getItem('ops-tab');
@@ -588,7 +573,11 @@
     });
 
     async function deleteUnit(id) {
-      if (!confirm('Hapus unit ' + id + '?')) return;
+      const ok = await arcConfirm(
+        `Hapus field unit <b style="color:var(--signal);">${id}</b>?`,
+        { title: 'Hapus Field Unit', icon: '🗑', okText: 'Ya, Hapus', danger: true }
+      );
+      if (!ok) return;
       const r = await api('/api/units/' + id, { method: 'DELETE' });
       if (r.success) { loadUnits(); showToast('Unit dihapus'); }
     }
@@ -634,7 +623,11 @@
     }
 
     async function revokeCode(id) {
-      if (!confirm('Hapus invite code ini?')) return;
+      const ok = await arcConfirm(
+        `Cabut invite code <b style="color:var(--signal);">${id}</b>?<br><span style="font-size:11px;color:var(--ash);">Kode tidak bisa digunakan lagi setelah dihapus.</span>`,
+        { title: 'Cabut Invite Code', icon: '🔑', okText: 'Ya, Cabut', danger: true }
+      );
+      if (!ok) return;
       const r = await api('/api/invite-codes/' + id, { method: 'DELETE' });
       if (r.success) { loadInviteCodes(); showToast('Kode dihapus'); }
     }
@@ -666,10 +659,11 @@
     async function loadOperators() {
       const data = await api('/api/operators');
       allOperators = data;
-      const active = data.filter(o => o.active).length;
-      document.getElementById('s-total').textContent = data.length;
-      document.getElementById('s-active').textContent = active;
-      document.getElementById('s-inactive').textContent = data.length - active;
+      const online   = data.filter(o => o.active && o.online).length;
+      const inactive = data.filter(o => !o.active).length;
+      document.getElementById('s-total').textContent    = data.length;
+      document.getElementById('s-active').textContent   = online;   // hitung yang online
+      document.getElementById('s-inactive').textContent = inactive;
       renderTable();
     }
 
@@ -697,9 +691,15 @@
 
       const isCmd = currentUser && currentUser.clearance >= 3;
       tbody.innerHTML = ops.map(op => {
-        const statusBadgeHtml = op.active
-          ? '<span class="badge badge-ok">ACTIVE</span>'
-          : '<span class="badge badge-neutral">INACTIVE</span>';
+        // online = socket aktif, active = akun tidak dinonaktifkan
+        let statusBadgeHtml;
+        if (!op.active) {
+          statusBadgeHtml = '<span class="badge badge-neutral">INACTIVE</span>';
+        } else if (op.online) {
+          statusBadgeHtml = '<span class="badge badge-ok" style="animation:pulse-green 2s ease-in-out infinite;">● ONLINE</span>';
+        } else {
+          statusBadgeHtml = '<span class="badge badge-neutral" style="opacity:.7;">○ OFFLINE</span>';
+        }
         const lastLogin = op.lastLogin
           ? new Date(op.lastLogin).toUTCString().split(' ').slice(1,4).join(' ')
           : 'Never';
@@ -820,25 +820,17 @@
       box.style.display = 'flex';
     }
 
-    let pendingDeactivateId = null;
-    function confirmDeactivate(id, name) {
-      pendingDeactivateId = id;
-      document.getElementById('confirm-msg').textContent = `Deactivate operator ${id} (${name})? They will no longer be able to log in.`;
-      document.getElementById('confirm-overlay').style.display = 'flex';
-    }
-    function closeConfirm() {
-      pendingDeactivateId = null;
-      document.getElementById('confirm-overlay').style.display = 'none';
-    }
-    document.getElementById('confirm-ok').addEventListener('click', async () => {
-      if (!pendingDeactivateId) return;
-      const id = pendingDeactivateId;
-      closeConfirm();
+    async function confirmDeactivate(id, name) {
+      const ok = await arcConfirm(
+        `Nonaktifkan operator <b style="color:var(--signal);">${id}</b> (${name})?<br><span style="font-size:11px;color:var(--ash);">Operator tidak bisa login setelah dinonaktifkan.</span>`,
+        { title:'Nonaktifkan Operator', icon:'⚠', okText:'Ya, Nonaktifkan', danger:true }
+      );
+      if (!ok) return;
       const result = await api(`/api/operators/${id}`, { method: 'DELETE' });
       if (result.error) { showToast(result.error, true); return; }
-      showToast('Operator deactivated');
+      showToast('Operator dinonaktifkan');
       loadOperators();
-    });
+    }
 
     async function reactivate(id) {
       const op = allOperators.find(o => o.id === id);
@@ -1034,6 +1026,7 @@
     const leafletStyle = document.createElement('style');
     leafletStyle.textContent = `
       .leaflet-container { background:#040c16; }
+      .leaflet-container img.leaflet-tile { mix-blend-mode: normal !important; }
       .leaflet-control-zoom a { background:var(--bg-panel);color:var(--mist);border-color:var(--border); }
       .leaflet-control-attribution { background:rgba(6,14,26,.8)!important;color:var(--ash)!important;font-size:8px; }
     `;

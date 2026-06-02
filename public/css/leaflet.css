@@ -61,8 +61,8 @@
 	}
 
 .leaflet-container img.leaflet-tile {
-	/* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
-	mix-blend-mode: plus-lighter;
+	/* Disabled: plus-lighter makes dark tiles invisible on dark backgrounds */
+	mix-blend-mode: normal;
 }
 
 .leaflet-container.leaflet-touch-zoom {

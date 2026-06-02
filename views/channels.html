@@ -12,7 +12,7 @@
     .sb-search { margin: 10px; background: var(--bg-app); border: 0.5px solid var(--border); border-radius: 4px; height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; }
     .sb-search input { background: transparent; border: none; outline: none; color: var(--frost); font-family: var(--font); font-size: 11px; flex: 1; }
     .sb-section-lbl { font-size: 9px; color: var(--cmd); letter-spacing: 0.1em; text-transform: uppercase; padding: 6px 10px 4px; }
-    .ch-nav-item { padding: 8px 10px; border-bottom: 0.5px solid var(--abyss); cursor: pointer; display: flex; flex-direction: column; gap: 3px; text-decoration: none; }
+    .ch-nav-item { padding: 8px 10px; border-bottom: 0.5px solid var(--abyss); cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
     .ch-nav-item:hover { background: #070f1c; }
     .ch-nav-item.active { background: var(--deep); border-left: 2px solid var(--signal); }
     .ch-top-row { display: flex; align-items: center; gap: 6px; }
@@ -20,7 +20,7 @@
     .ch-nav-item.active .ch-nav-name { color: var(--frost); }
     .ch-nav-preview { font-size: 10px; color: var(--ash); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ch-count { font-size: 9px; background: var(--cmd); color: var(--mist); border-radius: 99px; padding: 1px 5px; }
-    .main-chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .main-chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; position: relative; }
     .ch-header { background: var(--bg-topbar); border-bottom: 0.5px solid var(--border); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 8px; }
     .ch-title { font-size: 14px; font-weight: bold; color: var(--frost); letter-spacing: 0.06em; }
     .ch-meta-text { font-size: 10px; color: var(--signal); margin-top: 2px; }
@@ -59,6 +59,50 @@
     .m-name { font-size: 10px; color: var(--mist); }
     .m-role { font-size: 9px; color: var(--ash); }
     .no-channel { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ash); font-size: 12px; flex-direction: column; gap: 8px; }
+
+    /* ── Channel Settings Modal ── */
+    #ch-settings-overlay {
+      position:fixed; inset:0; z-index:9000;
+      background:rgba(0,0,0,.72); backdrop-filter:blur(4px);
+      display:none; align-items:center; justify-content:center; padding:12px;
+    }
+    #ch-settings-overlay.open { display:flex; }
+    #ch-settings-modal {
+      background:var(--bg-panel); border:.5px solid var(--border);
+      border-radius:14px; width:100%; max-width:480px;
+      max-height:90vh; display:flex; flex-direction:column;
+      overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.8);
+      animation:csp-in .2s ease;
+    }
+    @keyframes csp-in { from{transform:scale(.94) translateY(10px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
+    .csp-modal-header { padding:16px 18px; border-bottom:.5px solid var(--border); display:flex; align-items:center; gap:12px; flex-shrink:0; }
+    .csp-modal-avatar { width:42px; height:42px; border-radius:10px; background:var(--deep); border:.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+    .csp-modal-body { overflow-y:auto; flex:1; }
+    .csp-section { padding:14px 18px; border-bottom:.5px solid var(--border); }
+    .csp-lbl { font-size:9px; color:var(--cmd); letter-spacing:.08em; text-transform:uppercase; margin-bottom:8px; font-weight:bold; }
+    .csp-input { background:var(--bg-app); border:.5px solid var(--border); border-radius:6px; padding:8px 11px; color:var(--frost); font-family:var(--font); font-size:12px; width:100%; outline:none; box-sizing:border-box; transition:border-color .15s; }
+    .csp-input:focus { border-color:var(--signal); }
+    .csp-member-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:.5px solid var(--abyss); }
+    .csp-member-row:last-child { border-bottom:none; }
+    .csp-member-avatar { width:30px; height:30px; border-radius:50%; background:var(--deep); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--mist); flex-shrink:0; font-weight:bold; }
+    .csp-member-name { flex:1; font-size:11px; color:var(--mist); font-weight:bold; }
+    .csp-member-sub { font-size:9px; color:var(--ash); }
+    .csp-kick-btn { background:none; border:.5px solid var(--border); color:var(--ash); font-size:9px; padding:3px 9px; border-radius:4px; cursor:pointer; font-family:var(--font); transition:all .15s; }
+    .csp-kick-btn:hover { border-color:var(--threat); color:var(--threat); background:rgba(226,75,74,.08); }
+    @media (max-width:480px) {
+      #ch-settings-modal { border-radius:12px 12px 0 0; max-height:85vh; }
+      #ch-settings-overlay { align-items:flex-end; padding:0; }
+    }
+
+    /* ── Message actions ── */
+    .msg-actions { position:absolute; top:-4px; right:0; display:none; gap:3px; background:var(--bg-panel); border:.5px solid var(--border); border-radius:6px; padding:2px 4px; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+    .msg-row:hover .msg-actions { display:flex; }
+    .msg-row.self .msg-actions { right:auto; left:0; }
+    .msg-act-btn { background:none; border:none; color:var(--ash); cursor:pointer; padding:2px 5px; border-radius:3px; font-size:11px; }
+    .msg-act-btn:hover { background:var(--deep); color:var(--mist); }
+    .msg-act-del:hover { color:var(--threat); }
+    .msg-bubble { position:relative; }
+    .msg-edited { font-size:8px; color:var(--ash); font-style:italic; margin-left:4px; }
     /* Mobile channel toggle */
     .ch-toggle-btn { display: none; background: none; border: none; color: var(--signal); font-size: 18px; cursor: pointer; padding: 4px; }
     .ch-sidebar-overlay { position: fixed; inset: 0; z-index: 199; background: rgba(0,0,0,.5); display: none; }
@@ -114,7 +158,13 @@
           <i class="ti ti-search" style="font-size:12px;color:var(--ash);" aria-hidden="true"></i>
           <input type="text" placeholder="Search channels..." id="ch-search">
         </div>
-        <div class="sb-section-lbl">Ops channels</div>
+        <div class="sb-section-lbl" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px;">
+          <span>Ops channels</span>
+          <button id="btn-new-channel" onclick="openNewChannelModal()" title="Buat channel baru"
+            style="display:none;background:none;border:none;color:var(--signal);cursor:pointer;font-size:14px;padding:0;line-height:1;">
+            <i class="ti ti-plus"></i>
+          </button>
+        </div>
         <div id="channel-nav"></div>
       </div>
 
@@ -122,7 +172,8 @@
       <div class="main-chat">
         <div class="ch-header" id="ch-header">
           <button class="ch-toggle-btn" onclick="openSidebar()" title="Channels"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
-          <div style="flex:1;min-width:0;">
+          <!-- Klik title area → buka channel settings -->
+          <div style="flex:1;min-width:0;cursor:pointer;" id="ch-header-click" onclick="openChannelSettings()" title="Klik untuk pengaturan channel">
             <div class="ch-title" id="ch-title">Select a channel</div>
             <div class="ch-meta-text" id="ch-meta"></div>
           </div>
@@ -165,7 +216,7 @@
     <nav class="mobile-nav">
       <a href="/dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
       <a href="/channels"  title="Channels" class="active"><i class="ti ti-messages"></i><span>COMMS</span></a>
-        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2" aria-hidden="true"></i></a>
+      <a href="/dm"        title="DM" data-nav="dm"><i class="ti ti-message-2"></i><span>DM</span></a>
       <a href="/grid"      title="Grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
       <a href="/sitrep"    title="Sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
       <a href="/operators" title="Operators"><i class="ti ti-users"></i><span>OPS</span></a>
@@ -183,6 +234,12 @@
 
     async function init() {
       currentUser = await initTopbar('CHANNELS');
+      window._currentUser = currentUser;
+
+      // Tampilkan tombol buat channel jika punya akses
+      const canManage = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser.role) || currentUser.clearance >= 3;
+      if (canManage) document.getElementById('btn-new-channel').style.display = '';
+
       loadChannels();
       loadOperators();
 
@@ -199,18 +256,21 @@
     }
 
     async function loadChannels() {
-      const channels = await api('/api/channels');
+      const channels = await loadChannelsData();
       const nav = document.getElementById('channel-nav');
-      nav.innerHTML = channels.map(ch => `
-        <a class="ch-nav-item" data-id="${ch.id}" data-name="${ch.name}" href="#" onclick="openChannel('${ch.id}','${ch.name}');closeSidebar();return false;">
-          <div class="ch-top-row">
+      const isAdmin = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser?.role) || currentUser?.clearance >= 3;
+      nav.innerHTML = channels.map(ch => {
+        const memberBadge = ch.members?.length ? `<i class="ti ti-lock" style="font-size:9px;color:var(--ash);margin-left:3px;" title="${ch.members.length} anggota"></i>` : '';
+        return `
+        <div class="ch-nav-item" data-id="${ch.id}" data-name="${ch.name}" style="position:relative;">
+          <div class="ch-top-row" onclick="openChannel('${ch.id}','${ch.name}');closeSidebar();">
             <span class="status-dot ${ch.status==='active'?'dot-green':ch.status==='alert'?'dot-amber':'dot-gray'}"></span>
-            <span class="ch-nav-name">${ch.name}</span>
+            <span class="ch-nav-name">${ch.name}${memberBadge}</span>
             ${ch.unread ? `<span class="ch-count">${ch.unread}</span>` : ''}
           </div>
-          <span class="ch-nav-preview">Tap to open</span>
-        </a>
-      `).join('');
+          <span class="ch-nav-preview" onclick="openChannel('${ch.id}','${ch.name}');closeSidebar();">Tap to open</span>
+        </div>`;
+      }).join('');
 
       // Search
       document.getElementById('ch-search').addEventListener('input', function() {
@@ -232,15 +292,33 @@
         </div>`).join('');
     }
 
+    let _allChannels = [];
+
+    async function loadChannelsData() {
+      _allChannels = await api('/api/channels');
+      return _allChannels;
+    }
+
     async function openChannel(id, name) {
       if (currentChannel) socket.emit('leave-channel', currentChannel);
       currentChannel = id;
       document.querySelectorAll('.ch-nav-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+
+      // Set managing channel
+      const chData = _allChannels.find(c => c.id === id);
+      _managingChannel = chData || { id, name };
+
       document.getElementById('ch-title').textContent = name;
-      document.getElementById('ch-meta').textContent = 'end-to-end encrypted · clearance LVL 2+';
+      const topic = chData?.topic ? ` · ${chData.topic}` : '';
+      const memberInfo = chData?.members?.length ? ` · ${chData.members.length} anggota` : ' · publik';
+      document.getElementById('ch-meta').textContent = `end-to-end encrypted · CLR LVL ${chData?.clearance||2}+${memberInfo}${topic}`;
       document.getElementById('input-area').style.display = 'block';
       const msgs = document.getElementById('messages');
       msgs.innerHTML = `<div class="sys-msg">— SESSION OPENED · ENCRYPTION VERIFIED · ${new Date().toUTCString().split(' ')[4]} UTC —</div>`;
+
+      // Tampilkan tombol manage jika punya akses
+      const canManage = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser?.role) || currentUser?.clearance >= 3;
+      document.getElementById('btn-manage-channel').style.display = canManage ? '' : 'none';
 
       // Load message history
       const history = await api(`/api/messages/${id}`);
@@ -253,6 +331,10 @@
       const msgs = document.getElementById('messages');
       const div = document.createElement('div');
       div.className = `msg-row${isSelf ? ' self' : ''}`;
+      div.dataset.msgId = msg.id || '';
+      const msgId = msg.id || '';
+      const isAdmin = ['CHIEF','SA','ADMIN'].includes(currentUser?.role);
+      const canAct  = isSelf || isAdmin;
       div.innerHTML = `
         <div class="msg-avatar${isSelf ? ' self' : ''}">${msg.user.slice(0,2).toUpperCase()}</div>
         <div class="msg-content">
@@ -260,7 +342,14 @@
             <span class="msg-sender${isSelf?' self':''}">${msg.user}</span>
             <span class="msg-time">${msg.time || new Date().toUTCString().split(' ')[4].slice(0,5)}</span>
           </div>
-          <div class="msg-bubble${isSelf?' self':''}">${escapeHtml(msg.message)}</div>
+          <div class="msg-bubble${isSelf?' self':''}" id="bubble-${msgId}">
+            <span class="msg-text" id="msgtxt-${msgId}">${escapeHtml(msg.message)}</span>
+            ${msg.edited ? '<span class="msg-edited">(edited)</span>' : ''}
+            ${canAct && msgId ? `<div class="msg-actions">
+              ${isSelf ? `<button class="msg-act-btn" onclick="editMsg('${msgId}')" title="Edit"><i class="ti ti-pencil"></i></button>` : ''}
+              <button class="msg-act-btn msg-act-del" onclick="deleteMsg('${msgId}')" title="Hapus"><i class="ti ti-trash"></i></button>
+            </div>` : ''}
+          </div>
           ${msg.burn ? '<div class="burn-tag"><i class="ti ti-flame" aria-hidden="true"></i> burn after read · 5m</div>' : ''}
           <div class="msg-enc"><i class="ti ti-lock" aria-hidden="true"></i> encrypted · delivered</div>
         </div>`;
@@ -269,12 +358,61 @@
 
       if (msg.burn) {
         setTimeout(() => {
-          div.style.transition = 'opacity 1s';
-          div.style.opacity = '0';
+          div.style.transition = 'opacity 1s'; div.style.opacity = '0';
           setTimeout(() => div.remove(), 1000);
         }, 5 * 60 * 1000);
       }
     }
+
+    function editMsg(id) {
+      const txtEl = document.getElementById('msgtxt-' + id);
+      if (!txtEl || txtEl.querySelector('textarea')) return;
+      const orig = txtEl.textContent;
+      txtEl.innerHTML = `<textarea style="background:var(--bg-app);border:.5px solid var(--signal);color:var(--frost);font-family:var(--font);font-size:12px;border-radius:4px;padding:4px 8px;width:100%;resize:none;outline:none;">${orig}</textarea>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button onclick="submitEdit('${id}')" style="background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:10px;padding:3px 10px;border-radius:4px;cursor:pointer;">Simpan</button>
+          <button onclick="cancelEdit('${id}','${escapeHtml(orig)}')" style="background:none;border:.5px solid var(--border);color:var(--ash);font-family:var(--font);font-size:10px;padding:3px 10px;border-radius:4px;cursor:pointer;">Batal</button>
+        </div>`;
+      txtEl.querySelector('textarea').focus();
+    }
+
+    async function submitEdit(id) {
+      const txtEl = document.getElementById('msgtxt-' + id);
+      const newText = txtEl?.querySelector('textarea')?.value?.trim();
+      if (!newText) return;
+      const r = await fetch(`/api/messages/${id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ message: newText })
+      });
+      if ((await r.json()).success) {
+        txtEl.innerHTML = `${escapeHtml(newText)} <span class="msg-edited">(edited)</span>`;
+      }
+    }
+
+    function cancelEdit(id, orig) {
+      const txtEl = document.getElementById('msgtxt-' + id);
+      if (txtEl) txtEl.innerHTML = orig;
+    }
+
+    async function deleteMsg(id) {
+      const ok = await arcConfirm('Hapus pesan ini?', { title:'Hapus Pesan', icon:'🗑', okText:'Ya, Hapus', danger:true });
+      if (!ok) return;
+      await fetch(`/api/messages/${id}`, { method:'DELETE' });
+    }
+
+    // Socket: edit & delete realtime
+    socket.on('message-edited', ({ id, message }) => {
+      const el = document.getElementById('msgtxt-' + id);
+      if (el) el.innerHTML = `${escapeHtml(message)} <span class="msg-edited">(edited)</span>`;
+    });
+    socket.on('message-deleted', ({ id }) => {
+      const row = document.querySelector(`[data-msg-id="${id}"]`);
+      if (row) {
+        row.style.transition = 'opacity .3s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+      }
+    });
 
     function escapeHtml(text) {
       return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -345,7 +483,532 @@
       document.getElementById('members-panel').classList.remove('open');
     });
 
+    // ── Channel Settings Panel ───────────────────────────────
+    let _cspAllOps = [];
+
+    const _TYPE_ICON  = { restricted:'ti-lock', command:'ti-bolt', ops:'ti-map-pin', alert:'ti-alert-triangle', neutral:'ti-circle' };
+    const _TYPE_COLOR = { restricted:'#E24B4A', command:'#378ADD', ops:'#639922', alert:'#EF9F27', neutral:'#666' };
+
+    function openChannelSettings() {
+      if (!_managingChannel) return;
+      const ch = _managingChannel;
+      document.getElementById('csp-title').textContent    = ch.name || ch.id;
+      document.getElementById('csp-subtitle').textContent = ch.id + ' · ' + (ch.type||'').toUpperCase();
+      const iconClass = _TYPE_ICON[ch.type] || 'ti-messages';
+      const iconColor = _TYPE_COLOR[ch.type] || 'var(--signal)';
+      document.getElementById('csp-modal-avatar').innerHTML =
+        `<i class="ti ${iconClass}" style="font-size:20px;color:${iconColor};"></i>`;
+      document.getElementById('csp-modal-avatar').style.borderColor = iconColor + '55';
+      document.getElementById('csp-name').value        = ch.name || '';
+      document.getElementById('csp-topic').value       = ch.topic || '';
+      document.getElementById('csp-type').value        = ch.type || 'restricted';
+      document.getElementById('csp-clearance').value   = ch.clearance || 2;
+
+      const canManage = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser?.role) || currentUser?.clearance >= 3;
+      const canDelete = ['CHIEF','SA','ADMIN'].includes(currentUser?.role);
+      document.getElementById('csp-danger-section').style.display = canDelete ? '' : 'none';
+      // Readonly jika tidak bisa manage
+      ['csp-name','csp-topic','csp-type','csp-clearance'].forEach(id => {
+        document.getElementById(id).disabled = !canManage;
+      });
+      document.getElementById('csp-invite-wrap').style.display = canManage ? '' : 'none';
+
+      _renderCspMembers(ch);
+      _loadCspOps(ch);
+      document.getElementById('ch-settings-overlay').classList.add('open');
+    }
+
+    function closeChannelSettings() {
+      document.getElementById('ch-settings-overlay').classList.remove('open');
+    }
+
+    function _renderCspMembers(ch) {
+      const members = ch.members || [];
+      const countEl = document.getElementById('csp-member-count');
+      countEl.textContent = members.length ? `(${members.length})` : '(publik)';
+      const listEl  = document.getElementById('csp-member-list');
+      const canManage = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser?.role) || currentUser?.clearance >= 3;
+      if (!members.length) {
+        listEl.innerHTML = '<div style="font-size:10px;color:var(--ash);padding:4px 0;">Semua operator bisa bergabung</div>';
+        return;
+      }
+      listEl.innerHTML = members.map(opId => {
+        const op = _cspAllOps.find(o => (o.id||o.operatorId) === opId);
+        const name = op?.name || opId;
+        const role = op?.role || '';
+        return `<div class="csp-member-row">
+          <div class="csp-member-avatar">${name.slice(0,2)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="csp-member-name">${name}</div>
+            <div class="csp-member-role">${role}</div>
+          </div>
+          ${canManage ? `<button class="csp-kick-btn" onclick="cspKick('${opId}')"><i class="ti ti-x"></i> Kick</button>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    async function _loadCspOps(ch) {
+      if (!_cspAllOps.length) {
+        _cspAllOps = (await api('/api/operators')).filter(o => o.active !== false);
+      }
+      const members = ch.members || [];
+      const sel = document.getElementById('csp-invite-op');
+      sel.innerHTML = '<option value="">— Pilih operator —</option>' +
+        _cspAllOps.filter(o => !members.includes(o.id||o.operatorId))
+          .map(o => `<option value="${o.id||o.operatorId}">${o.name} (${o.role})</option>`).join('');
+    }
+
+    async function cspInvite() {
+      const opId = document.getElementById('csp-invite-op').value;
+      if (!opId || !_managingChannel) return;
+      const r = await fetch(`/api/channels/${_managingChannel.id}/members`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ operatorId: opId })
+      });
+      const d = await r.json();
+      if (d.success) { _managingChannel = d.channel; _renderCspMembers(d.channel); await _loadCspOps(d.channel); if(typeof loadChannels==='function') loadChannels(); }
+    }
+
+    async function cspKick(opId) {
+      if (!_managingChannel) return;
+      const r = await fetch(`/api/channels/${_managingChannel.id}/members/${opId}`, { method:'DELETE' });
+      const d = await r.json();
+      if (d.success) { _managingChannel = d.channel; _renderCspMembers(d.channel); await _loadCspOps(d.channel); if(typeof loadChannels==='function') loadChannels(); }
+    }
+
+    async function saveChannelInfo() {
+      if (!_managingChannel) return;
+      const r = await fetch(`/api/channels/${_managingChannel.id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          name:      document.getElementById('csp-name').value.trim(),
+          topic:     document.getElementById('csp-topic').value.trim(),
+          type:      document.getElementById('csp-type').value,
+          clearance: parseInt(document.getElementById('csp-clearance').value),
+        })
+      });
+      const d = await r.json();
+      if (d.success) {
+        _managingChannel = d.channel;
+        document.getElementById('ch-title').textContent = d.channel.name;
+        if(typeof loadChannels==='function') loadChannels();
+      }
+    }
+
+    async function cspDeleteChannel() {
+      const ok = await arcConfirm(
+        `Hapus channel <b style="color:var(--signal);">${_managingChannel?.id}</b>?`,
+        { title:'Hapus Channel', icon:'🗑', okText:'Ya, Hapus', danger:true }
+      );
+      if (!ok) return;
+      await fetch(`/api/channels/${_managingChannel.id}`, { method:'DELETE' });
+      closeChannelSettings();
+      if(typeof loadChannels==='function') loadChannels();
+    }
+
     init();
+  </script>
+
+  <!-- ── Channel Settings Modal (center) ─────────────────── -->
+  <div id="ch-settings-overlay" onclick="if(event.target===this)closeChannelSettings()">
+    <div id="ch-settings-modal">
+      <!-- Header dengan avatar channel -->
+      <div class="csp-modal-header">
+        <div class="csp-modal-avatar" id="csp-modal-avatar"><i class="ti ti-messages" style="font-size:20px;"></i></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:bold;color:var(--frost);letter-spacing:.04em;" id="csp-title">Channel</div>
+          <div style="font-size:10px;color:var(--ash);" id="csp-subtitle">Settings</div>
+        </div>
+        <button onclick="closeChannelSettings()" style="background:none;border:none;color:var(--ash);cursor:pointer;font-size:20px;padding:4px;border-radius:6px;line-height:1;" title="Tutup">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+
+      <div class="csp-modal-body">
+        <!-- Info Channel -->
+        <div class="csp-section">
+          <div class="csp-lbl">Info Channel</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div>
+              <div style="font-size:9px;color:var(--ash);margin-bottom:4px;">Nama Channel</div>
+              <input id="csp-name" class="csp-input" placeholder="Nama channel">
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--ash);margin-bottom:4px;">Deskripsi / Topic</div>
+              <input id="csp-topic" class="csp-input" placeholder="Deskripsi singkat channel ini">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;">
+                <div style="font-size:9px;color:var(--ash);margin-bottom:4px;">Tipe</div>
+                <select id="csp-type" class="csp-input" style="padding:7px 8px;">
+                  <option value="restricted">Restricted</option>
+                  <option value="command">Command</option>
+                  <option value="ops">Ops</option>
+                  <option value="alert">Alert</option>
+                  <option value="neutral">Neutral</option>
+                </select>
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:9px;color:var(--ash);margin-bottom:4px;">Min. Clearance</div>
+                <select id="csp-clearance" class="csp-input" style="padding:7px 8px;">
+                  <option value="1">LVL 1 — Semua</option>
+                  <option value="2">LVL 2 — Standard</option>
+                  <option value="3">LVL 3 — Senior</option>
+                  <option value="4">LVL 4 — Classified</option>
+                </select>
+              </div>
+            </div>
+            <button onclick="saveChannelInfo()" style="width:100%;background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:11px;padding:9px;border-radius:7px;cursor:pointer;font-weight:bold;letter-spacing:.04em;">
+              <i class="ti ti-check"></i> Simpan Perubahan
+            </button>
+          </div>
+        </div>
+
+        <!-- Members -->
+        <div class="csp-section">
+          <div class="csp-lbl" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Anggota <span id="csp-member-count" style="color:var(--ash);font-weight:normal;font-size:9px;"></span></span>
+            <span style="font-size:9px;color:var(--ash);font-weight:normal;letter-spacing:0;">Kosong = publik</span>
+          </div>
+          <div id="csp-member-list" style="max-height:180px;overflow-y:auto;margin-bottom:10px;"></div>
+          <!-- Invite -->
+          <div id="csp-invite-wrap">
+            <div style="font-size:9px;color:var(--ash);margin-bottom:5px;">Undang Operator</div>
+            <div style="display:flex;gap:6px;">
+              <select id="csp-invite-op" class="csp-input" style="flex:1;padding:7px 8px;">
+                <option value="">— Pilih operator —</option>
+              </select>
+              <button onclick="cspInvite()" style="background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:13px;padding:7px 13px;border-radius:6px;cursor:pointer;">
+                <i class="ti ti-user-plus"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="csp-section" id="csp-danger-section" style="display:none;">
+          <div class="csp-lbl" style="color:var(--threat);">Zona Berbahaya</div>
+          <button onclick="cspDeleteChannel()" style="width:100%;background:rgba(226,75,74,.1);border:.5px solid var(--threat);color:var(--threat);font-family:var(--font);font-size:11px;padding:9px;border-radius:7px;cursor:pointer;">
+            <i class="ti ti-trash"></i> Hapus Channel Ini
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Buat Channel ──────────────────────────────── -->
+  <div id="modal-new-ch" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center;" onclick="if(event.target===this)closeNewChannelModal()">
+    <div style="background:var(--bg-panel);border:.5px solid var(--border);border-radius:10px;width:100%;max-width:460px;padding:0;overflow:hidden;">
+      <div style="padding:14px 18px;border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;font-weight:bold;color:var(--frost);letter-spacing:.06em;">BUAT CHANNEL BARU</span>
+        <button onclick="closeNewChannelModal()" style="background:none;border:none;color:var(--ash);cursor:pointer;font-size:16px;"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">CHANNEL ID <span style="color:var(--ash)">(huruf besar, tanpa spasi)</span></div>
+          <div style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;padding:8px 12px;">
+            <input id="nch-id" placeholder="OPS-BRAVO / INTEL-3 / COMMAND" style="background:none;border:none;outline:none;color:var(--frost);font-family:var(--font);font-size:12px;width:100%;text-transform:uppercase;" autocomplete="off">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">NAMA CHANNEL</div>
+          <div style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;padding:8px 12px;">
+            <input id="nch-name" placeholder="OPS-BRAVO // Sektor Barat" style="background:none;border:none;outline:none;color:var(--frost);font-family:var(--font);font-size:12px;width:100%;" autocomplete="off">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">TOPIC <span style="color:var(--ash)">(opsional)</span></div>
+          <div style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;padding:8px 12px;">
+            <input id="nch-topic" placeholder="Operasi pemantauan sektor barat" style="background:none;border:none;outline:none;color:var(--frost);font-family:var(--font);font-size:12px;width:100%;" autocomplete="off">
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">MIN. CLEARANCE</div>
+            <select id="nch-clearance" style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;color:var(--frost);font-family:var(--font);font-size:11px;padding:8px 10px;width:100%;">
+              <option value="1">LVL 1 — Semua</option>
+              <option value="2" selected>LVL 2 — Standard</option>
+              <option value="3">LVL 3 — Senior</option>
+              <option value="4">LVL 4 — Classified</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">TIPE</div>
+            <select id="nch-type" style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;color:var(--frost);font-family:var(--font);font-size:11px;padding:8px 10px;width:100%;">
+              <option value="public">Publik — semua operator bisa lihat</option>
+              <option value="private">Privat — hanya member undangan</option>
+            </select>
+          </div>
+        </div>
+        <div id="nch-members-wrap" style="display:none;">
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">UNDANG ANGGOTA</div>
+          <div id="nch-op-list" style="display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;"></div>
+        </div>
+        <div id="nch-msg" style="font-size:11px;color:var(--threat);display:none;"></div>
+      </div>
+      <div style="padding:12px 18px;border-top:.5px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="closeNewChannelModal()" style="background:none;border:.5px solid var(--border);color:var(--ash);font-family:var(--font);font-size:11px;padding:7px 16px;border-radius:5px;cursor:pointer;">Batal</button>
+        <button onclick="submitNewChannel()" style="background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:11px;padding:7px 16px;border-radius:5px;cursor:pointer;font-weight:bold;"><i class="ti ti-plus"></i> Buat Channel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Kelola Channel ─────────────────────────────── -->
+  <div id="modal-manage-ch" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center;" onclick="if(event.target===this)closeManageModal()">
+    <div style="background:var(--bg-panel);border:.5px solid var(--border);border-radius:10px;width:100%;max-width:500px;overflow:hidden;">
+      <div style="padding:14px 18px;border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;font-weight:bold;color:var(--frost);letter-spacing:.06em;">KELOLA CHANNEL — <span id="mng-ch-id" style="color:var(--signal);"></span></span>
+        <button onclick="closeManageModal()" style="background:none;border:none;color:var(--ash);cursor:pointer;font-size:16px;"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <!-- Info channel -->
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">NAMA</div>
+            <div style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;padding:7px 10px;">
+              <input id="mng-name" style="background:none;border:none;outline:none;color:var(--frost);font-family:var(--font);font-size:11px;width:100%;">
+            </div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">STATUS</div>
+            <select id="mng-status" style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;color:var(--frost);font-family:var(--font);font-size:11px;padding:7px 10px;">
+              <option value="active">Active</option>
+              <option value="alert">Alert</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:5px;">TOPIC</div>
+          <div style="background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;padding:7px 10px;">
+            <input id="mng-topic" style="background:none;border:none;outline:none;color:var(--frost);font-family:var(--font);font-size:11px;width:100%;">
+          </div>
+        </div>
+        <!-- Member list -->
+        <div>
+          <div style="font-size:9px;color:var(--cmd);letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+            <span>ANGGOTA <span id="mng-member-count" style="color:var(--ash);"></span></span>
+            <span style="color:var(--ash);font-weight:normal;">Kosong = publik</span>
+          </div>
+          <div id="mng-member-list" style="display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto;margin-bottom:8px;"></div>
+          <!-- Tambah member -->
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="mng-add-op" style="flex:1;background:var(--bg-app);border:.5px solid var(--border);border-radius:5px;color:var(--frost);font-family:var(--font);font-size:11px;padding:6px 10px;">
+              <option value="">— Pilih operator untuk ditambahkan —</option>
+            </select>
+            <button onclick="addMemberToChannel()" style="background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;white-space:nowrap;"><i class="ti ti-user-plus"></i> Tambah</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 18px;border-top:.5px solid var(--border);display:flex;align-items:center;gap:8px;">
+        <button id="btn-delete-ch" onclick="deleteChannel()" style="background:rgba(226,75,74,.15);border:.5px solid var(--threat);color:var(--threat);font-family:var(--font);font-size:11px;padding:7px 14px;border-radius:5px;cursor:pointer;"><i class="ti ti-trash"></i> Hapus Channel</button>
+        <div style="flex:1;"></div>
+        <button onclick="closeManageModal()" style="background:none;border:.5px solid var(--border);color:var(--ash);font-family:var(--font);font-size:11px;padding:7px 14px;border-radius:5px;cursor:pointer;">Batal</button>
+        <button onclick="saveChannelEdit()" style="background:var(--cmd);border:none;color:var(--frost);font-family:var(--font);font-size:11px;padding:7px 14px;border-radius:5px;cursor:pointer;font-weight:bold;"><i class="ti ti-check"></i> Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ── Channel management ─────────────────────────────────────────
+  let _allOperators = [];
+  let _managingChannel = null;
+  const _canManage = () => ['CHIEF','SA','ADMIN','CMD'].includes(window._currentUser?.role) || window._currentUser?.clearance >= 3;
+
+  async function _loadOperatorsForChannelMgmt() {
+    try {
+      const ops = await fetch('/api/operators').then(r => r.json());
+      _allOperators = ops.filter(o => o.active !== false);
+    } catch(_) {}
+  }
+
+  function openNewChannelModal() {
+    if (!_canManage()) return;
+    _loadOperatorsForChannelMgmt();
+    document.getElementById('nch-id').value = '';
+    document.getElementById('nch-name').value = '';
+    document.getElementById('nch-topic').value = '';
+    document.getElementById('nch-clearance').value = '2';
+    document.getElementById('nch-type').value = 'public';
+    document.getElementById('nch-members-wrap').style.display = 'none';
+    document.getElementById('nch-msg').style.display = 'none';
+    document.getElementById('modal-new-ch').style.display = 'flex';
+
+    document.getElementById('nch-type').onchange = function() {
+      const isPrivate = this.value === 'private';
+      document.getElementById('nch-members-wrap').style.display = isPrivate ? 'block' : 'none';
+      if (isPrivate) _renderOpCheckboxes();
+    };
+  }
+
+  function closeNewChannelModal() {
+    document.getElementById('modal-new-ch').style.display = 'none';
+  }
+
+  function _renderOpCheckboxes() {
+    const el = document.getElementById('nch-op-list');
+    el.innerHTML = _allOperators.map(o => `
+      <label style="display:flex;align-items:center;gap:5px;background:var(--bg-app);border:.5px solid var(--border);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:10px;color:var(--mist);">
+        <input type="checkbox" value="${o.id||o.operatorId}" style="accent-color:var(--signal);">
+        ${o.name} <span style="color:var(--ash);font-size:9px;">${o.role}</span>
+      </label>`).join('');
+  }
+
+  async function submitNewChannel() {
+    const id   = document.getElementById('nch-id').value.trim().toUpperCase();
+    const name = document.getElementById('nch-name').value.trim();
+    if (!id || !name) { _showNchMsg('ID dan Nama wajib diisi'); return; }
+
+    const isPrivate = document.getElementById('nch-type').value === 'private';
+    const members = isPrivate
+      ? [...document.querySelectorAll('#nch-op-list input:checked')].map(i => i.value)
+      : [];
+
+    const r = await fetch('/api/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id, name,
+        topic: document.getElementById('nch-topic').value.trim(),
+        clearance: document.getElementById('nch-clearance').value,
+        members
+      })
+    });
+    const d = await r.json();
+    if (d.error) { _showNchMsg(d.error); return; }
+    closeNewChannelModal();
+    // Reload channel list (socket akan trigger juga)
+    if (typeof loadChannels === 'function') loadChannels();
+  }
+
+  function _showNchMsg(msg) {
+    const el = document.getElementById('nch-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  async function openManageModalById(chId) {
+    _managingChannel = _allChannels.find(c => c.id === chId);
+    openManageModal();
+  }
+
+  async function quickDeleteChannel(chId, chName) {
+    const ok = await arcConfirm(
+      `Hapus channel <b style="color:var(--signal);">${chName}</b>?`,
+      { title:'Hapus Channel', icon:'🗑', okText:'Ya, Hapus', danger:true }
+    );
+    if (!ok) return;
+    const r = await fetch(`/api/channels/${chId}`, { method:'DELETE' });
+    const d = await r.json();
+    if (d.success) loadChannels();
+  }
+
+  // ── Manage modal ────────────────────────────────────────────
+  async function openManageModal() {
+    if (!_managingChannel) return;
+    await _loadOperatorsForChannelMgmt();
+    const ch = _managingChannel;
+    document.getElementById('mng-ch-id').textContent  = ch.id;
+    document.getElementById('mng-name').value  = ch.name;
+    document.getElementById('mng-topic').value = ch.topic || '';
+    document.getElementById('mng-status').value= ch.status || 'active';
+
+    // Tombol hapus hanya untuk CHIEF/SA/ADMIN
+    const canDelete = ['CHIEF','SA','ADMIN'].includes(window._currentUser?.role);
+    document.getElementById('btn-delete-ch').style.display = canDelete ? '' : 'none';
+
+    _renderMemberList(ch);
+    _renderAddOpDropdown(ch);
+    document.getElementById('modal-manage-ch').style.display = 'flex';
+  }
+
+  function closeManageModal() {
+    document.getElementById('modal-manage-ch').style.display = 'none';
+  }
+
+  function _renderMemberList(ch) {
+    const count = ch.members?.length || 0;
+    document.getElementById('mng-member-count').textContent = count ? `(${count} anggota)` : '(publik)';
+    document.getElementById('mng-member-list').innerHTML = count === 0
+      ? '<div style="font-size:10px;color:var(--ash);padding:4px 0;">Channel publik — semua operator bisa bergabung</div>'
+      : (ch.members || []).map(opId => {
+          const op = _allOperators.find(o => (o.id||o.operatorId) === opId);
+          const name = op ? `${op.name} <span style="color:var(--ash);font-size:9px;">${op.role}</span>` : opId;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg-app);border:.5px solid var(--border);border-radius:4px;">
+            <span style="flex:1;font-size:11px;color:var(--mist);">${name}</span>
+            <button onclick="removeMember('${opId}')" style="background:none;border:none;color:var(--threat);cursor:pointer;font-size:12px;padding:0;"><i class="ti ti-x"></i></button>
+          </div>`;
+        }).join('');
+  }
+
+  function _renderAddOpDropdown(ch) {
+    const members = ch.members || [];
+    const el = document.getElementById('mng-add-op');
+    el.innerHTML = '<option value="">— Pilih operator untuk ditambahkan —</option>' +
+      _allOperators.filter(o => !members.includes(o.id||o.operatorId)).map(o =>
+        `<option value="${o.id||o.operatorId}">${o.name} (${o.role})</option>`
+      ).join('');
+  }
+
+  async function addMemberToChannel() {
+    const opId = document.getElementById('mng-add-op').value;
+    if (!opId || !_managingChannel) return;
+    const r = await fetch(`/api/channels/${_managingChannel.id}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operatorId: opId })
+    });
+    const d = await r.json();
+    if (d.success) {
+      _managingChannel = d.channel;
+      _renderMemberList(d.channel);
+      _renderAddOpDropdown(d.channel);
+    }
+  }
+
+  async function removeMember(opId) {
+    if (!_managingChannel) return;
+    const r = await fetch(`/api/channels/${_managingChannel.id}/members/${opId}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) {
+      _managingChannel = d.channel;
+      _renderMemberList(d.channel);
+      _renderAddOpDropdown(d.channel);
+    }
+  }
+
+  async function saveChannelEdit() {
+    if (!_managingChannel) return;
+    const r = await fetch(`/api/channels/${_managingChannel.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:   document.getElementById('mng-name').value.trim(),
+        topic:  document.getElementById('mng-topic').value.trim(),
+        status: document.getElementById('mng-status').value,
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      closeManageModal();
+      if (typeof loadChannels === 'function') loadChannels();
+    }
+  }
+
+  async function deleteChannel() {
+    if (!_managingChannel) return;
+    const ok = await arcConfirm(
+      `Hapus channel <b style="color:var(--signal);">${_managingChannel.id}</b>?<br><span style="font-size:11px;color:var(--ash);">Semua pesan akan tetap ada di database.</span>`,
+      { title: 'Hapus Channel', icon: '🗑', okText: 'Ya, Hapus', danger: true }
+    );
+    if (!ok) return;
+    const r = await fetch(`/api/channels/${_managingChannel.id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) {
+      closeManageModal();
+      if (typeof loadChannels === 'function') loadChannels();
+    }
+  }
   </script>
 </body>
 </html>

@@ -56,8 +56,21 @@
     .read-tick { font-size:10px; color:var(--signal); }
     .msg-img { max-width:240px; max-height:220px; border-radius:8px; cursor:pointer; object-fit:cover; display:block; }
     .msg-video { max-width:240px; border-radius:8px; display:block; }
-    .msg-audio { display:flex; align-items:center; gap:8px; }
-    .msg-audio audio { height:28px; max-width:180px; }
+    /* ── Custom Voice Note Player ── */
+    .vn-player { display:flex; align-items:center; gap:8px; background:var(--bg-app); border:.5px solid var(--border); border-radius:20px; padding:6px 12px 6px 8px; min-width:200px; max-width:260px; }
+    .vn-play-btn { width:32px; height:32px; border-radius:50%; background:var(--cmd); border:none; color:var(--frost); font-size:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background .15s; }
+    .vn-play-btn:hover { background:var(--signal); }
+    .vn-play-btn.playing { background:var(--signal); }
+    .vn-body { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
+    .vn-waveform { height:24px; display:flex; align-items:center; gap:1.5px; overflow:hidden; }
+    .vn-bar { width:2.5px; border-radius:2px; background:var(--border); transition:background .1s; flex-shrink:0; }
+    .vn-bar.played { background:var(--cmd); }
+    .vn-bar.active { background:var(--signal); }
+    .vn-time { font-size:9px; color:var(--ash); font-family:var(--font); letter-spacing:.04em; }
+    .msg-row.self .vn-player { background:var(--deep); border-color:var(--cmd); }
+    .msg-row.self .vn-play-btn { background:var(--signal); }
+    .msg-row.self .vn-bar.played { background:var(--signal); }
+    .msg-row.self .vn-time { color:var(--ops); }
     .msg-file { display:flex; align-items:center; gap:8px; padding:4px 0; }
     .msg-file-icon { width:32px; height:32px; border-radius:6px; background:var(--steel); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--mist); flex-shrink:0; }
     .msg-file-info .name { font-size:11px; color:var(--frost); font-weight:bold; }
@@ -511,11 +524,23 @@
               ${msg.message ? `<div style="margin-top:4px;">${escH(msg.message)}</div>` : ''}`;
     }
     if (msg.type === 'audio') {
-      return `<div class="msg-audio">
-                <i class="ti ti-microphone" style="color:var(--signal);font-size:16px;flex-shrink:0;"></i>
-                <audio src="${escH(msg.fileUrl)}" controls></audio>
-                ${msg.duration ? `<span style="font-size:9px;color:var(--ash);">${fmtDur(msg.duration)}</span>` : ''}
-              </div>`;
+      const dur = msg.duration || 0;
+      const id  = 'vn-' + Math.random().toString(36).slice(2,8);
+      // Generate fake waveform bars (30 bars, random heights)
+      const seed = (msg._id||msg.fileUrl||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+      const bars = Array.from({length:30}, (_,i) => {
+        const h = 4 + Math.round(Math.abs(Math.sin((seed + i * 7) * 0.4)) * 18);
+        return `<div class="vn-bar" id="${id}-b${i}" style="height:${h}px;"></div>`;
+      }).join('');
+      return `<div class="vn-player" id="${id}">
+        <button class="vn-play-btn" id="${id}-btn" onclick="vnToggle('${id}','${escH(msg.fileUrl)}',${dur})" title="Play">
+          <i class="ti ti-player-play-filled" id="${id}-icon"></i>
+        </button>
+        <div class="vn-body">
+          <div class="vn-waveform">${bars}</div>
+          <span class="vn-time" id="${id}-time">${fmtDur(dur)}</span>
+        </div>
+      </div>`;
     }
     if (msg.type === 'file') {
       return `<a href="${escH(msg.fileUrl)}" download="${escH(msg.fileName||'file')}" style="text-decoration:none;">
@@ -910,6 +935,67 @@
   function escH(s) {
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Custom Voice Note Player ────────────────────────────────
+  const _vnAudios = {};  // id -> Audio obj
+
+  function vnToggle(id, url, totalDur) {
+    // Stop other players
+    Object.entries(_vnAudios).forEach(([k, a]) => {
+      if (k !== id && !a.paused) {
+        a.pause(); a.currentTime = 0;
+        document.getElementById(k + '-icon').className = 'ti ti-player-play-filled';
+        document.getElementById(k + '-btn').classList.remove('playing');
+        _vnResetBars(k);
+      }
+    });
+
+    if (!_vnAudios[id]) {
+      const audio = new Audio(url);
+      _vnAudios[id] = audio;
+      audio.addEventListener('timeupdate', () => _vnProgress(id, audio, totalDur));
+      audio.addEventListener('ended', () => {
+        document.getElementById(id + '-icon').className = 'ti ti-player-play-filled';
+        document.getElementById(id + '-btn').classList.remove('playing');
+        document.getElementById(id + '-time').textContent = fmtDur(totalDur || Math.round(audio.duration) || 0);
+        _vnResetBars(id);
+      });
+    }
+
+    const audio = _vnAudios[id];
+    const btn   = document.getElementById(id + '-btn');
+    const icon  = document.getElementById(id + '-icon');
+
+    if (audio.paused) {
+      audio.play();
+      icon.className = 'ti ti-player-pause-filled';
+      btn.classList.add('playing');
+    } else {
+      audio.pause();
+      icon.className = 'ti ti-player-play-filled';
+      btn.classList.remove('playing');
+    }
+  }
+
+  function _vnProgress(id, audio, totalDur) {
+    const dur     = audio.duration || totalDur || 1;
+    const ratio   = audio.currentTime / dur;
+    const elapsed = Math.round(audio.currentTime);
+    const timeEl  = document.getElementById(id + '-time');
+    if (timeEl) timeEl.textContent = fmtDur(elapsed);
+
+    const bars = document.querySelectorAll(`[id^="${id}-b"]`);
+    const played = Math.floor(ratio * bars.length);
+    bars.forEach((b, i) => {
+      b.classList.remove('played','active');
+      if (i < played)    b.classList.add('played');
+      else if (i === played) b.classList.add('active');
+    });
+  }
+
+  function _vnResetBars(id) {
+    document.querySelectorAll(`[id^="${id}-b"]`).forEach(b => b.classList.remove('played','active'));
   }
 
   function linkify(text) {

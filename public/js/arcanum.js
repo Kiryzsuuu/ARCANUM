@@ -349,6 +349,21 @@ async function initTopbar(pathLabel) {
   // Geolocation refresh every 5 minutes (300 000 ms)
   startPositionRefresh();
 
+  // Socket listener untuk badge notifikasi realtime
+  if (typeof io !== 'undefined') {
+    const _notifSocket = io();
+    _notifSocket.on('dm-receive', () => {
+      if (!location.pathname.startsWith('/dm')) {
+        _setBadge('dm', (_badgeState.dm || 0) + 1);
+      }
+    });
+    _notifSocket.on('new-message', (msg) => {
+      if (!location.pathname.startsWith('/channels') && msg?.user !== user.name) {
+        _setBadge('channels', (_badgeState.channels || 0) + 1);
+      }
+    });
+  }
+
   return user;
 }
 
@@ -471,6 +486,183 @@ function statusBadge(status) {
   const [cls, label] = map[status] || ['badge-neutral', (status||'').toUpperCase()];
   return `<span class="badge ${cls}">${label}</span>`;
 }
+
+// ══════════════════════════════════════════════
+//  CUSTOM CONFIRM / ALERT DIALOG
+// ══════════════════════════════════════════════
+(function _injectDialogStyles() {
+  const s = document.createElement('style');
+  s.textContent = `
+    #arcanum-dialog-overlay {
+      position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);
+      display:none;align-items:center;justify-content:center;
+      backdrop-filter:blur(3px);
+    }
+    #arcanum-dialog-overlay.show { display:flex; }
+    #arcanum-dialog-box {
+      background:var(--bg-panel);border:.5px solid var(--border);
+      border-radius:10px;min-width:320px;max-width:420px;width:90%;
+      overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7);
+      animation:dlg-in .15s ease;
+    }
+    @keyframes dlg-in { from{transform:scale(.93);opacity:0} to{transform:scale(1);opacity:1} }
+    #arcanum-dialog-header {
+      padding:14px 18px 0;display:flex;align-items:center;gap:10px;
+    }
+    #arcanum-dialog-icon { font-size:20px;flex-shrink:0; }
+    #arcanum-dialog-title { font-size:12px;font-weight:bold;color:var(--frost);letter-spacing:.05em; }
+    #arcanum-dialog-body { padding:10px 18px 18px;font-size:12px;color:var(--mist);line-height:1.6; }
+    #arcanum-dialog-footer { padding:12px 18px;border-top:.5px solid var(--border);display:flex;justify-content:flex-end;gap:8px; }
+    .dlg-btn { font-family:var(--font);font-size:11px;padding:7px 18px;border-radius:6px;cursor:pointer;border:none;font-weight:bold;letter-spacing:.04em;transition:opacity .15s; }
+    .dlg-btn:hover { opacity:.85; }
+    .dlg-btn-cancel { background:var(--deep);color:var(--ash);border:.5px solid var(--border); }
+    .dlg-btn-ok     { background:var(--cmd);color:var(--frost); }
+    .dlg-btn-danger { background:#8c1e1e;color:#f5c0c0; }
+  `;
+  document.head.appendChild(s);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'arcanum-dialog-overlay';
+  overlay.innerHTML = `
+    <div id="arcanum-dialog-box">
+      <div id="arcanum-dialog-header">
+        <span id="arcanum-dialog-icon"></span>
+        <span id="arcanum-dialog-title"></span>
+      </div>
+      <div id="arcanum-dialog-body"></div>
+      <div id="arcanum-dialog-footer">
+        <button class="dlg-btn dlg-btn-cancel" id="dlg-cancel-btn">Batal</button>
+        <button class="dlg-btn dlg-btn-ok"     id="dlg-ok-btn">Konfirmasi</button>
+      </div>
+    </div>`;
+  document.body ? document.body.appendChild(overlay)
+    : document.addEventListener('DOMContentLoaded', () => document.body.appendChild(overlay));
+})();
+
+/**
+ * arcConfirm(message, options?) → Promise<boolean>
+ * options: { title, icon, okText, cancelText, danger }
+ */
+function arcConfirm(message, opts = {}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('arcanum-dialog-overlay');
+    if (!overlay) { resolve(window.confirm(message)); return; }
+
+    document.getElementById('arcanum-dialog-icon').textContent  = opts.icon  || '⚠';
+    document.getElementById('arcanum-dialog-title').textContent = opts.title || 'Konfirmasi';
+    document.getElementById('arcanum-dialog-body').innerHTML    = message;
+
+    const okBtn = document.getElementById('dlg-ok-btn');
+    const cancelBtn = document.getElementById('dlg-cancel-btn');
+
+    okBtn.textContent     = opts.okText     || 'Ya, Lanjutkan';
+    cancelBtn.textContent = opts.cancelText || 'Batal';
+    okBtn.className = 'dlg-btn ' + (opts.danger ? 'dlg-btn-danger' : 'dlg-btn-ok');
+
+    // Show/hide cancel
+    cancelBtn.style.display = opts.alert ? 'none' : '';
+
+    overlay.classList.add('show');
+
+    const close = (result) => {
+      overlay.classList.remove('show');
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+      resolve(result);
+    };
+
+    document.getElementById('dlg-ok-btn').onclick     = () => close(true);
+    document.getElementById('dlg-cancel-btn').onclick = () => close(false);
+    overlay.onclick = e => { if (e.target === overlay) close(false); };
+  });
+}
+
+/** arcAlert(message, opts?) — hanya tombol OK */
+function arcAlert(message, opts = {}) {
+  return arcConfirm(message, { ...opts, alert: true, okText: opts.okText || 'OK' });
+}
+
+// ══════════════════════════════════════════════
+//  NOTIFICATION BADGE SYSTEM
+// ══════════════════════════════════════════════
+const _badgeState = { dm: 0, channels: 0 };
+
+function _initBadges() {
+  // Wrap setiap nav-btn sidebar dalam nav-item + inject badge span
+  document.querySelectorAll('.sidebar .nav-btn').forEach(btn => {
+    const href = btn.getAttribute('href') || '';
+    const key  = href.includes('/dm') ? 'dm' : href.includes('/channels') ? 'channels' : null;
+    if (!key) return;
+
+    // Bungkus dalam nav-item jika belum
+    if (!btn.parentElement.classList.contains('nav-item')) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'nav-item';
+      btn.parentNode.insertBefore(wrapper, btn);
+      wrapper.appendChild(btn);
+    }
+    // Tambah badge
+    if (!btn.querySelector('.nav-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'nav-badge';
+      badge.dataset.key = key;
+      btn.appendChild(badge);
+    }
+  });
+
+  // Badge untuk mobile nav juga
+  document.querySelectorAll('.mobile-nav a').forEach(btn => {
+    const href = btn.getAttribute('href') || '';
+    const key  = href.includes('/dm') ? 'dm' : href.includes('/channels') ? 'channels' : null;
+    if (!key || btn.querySelector('.mob-badge')) return;
+    btn.style.position = 'relative';
+    const badge = document.createElement('span');
+    badge.className = 'mob-badge';
+    badge.dataset.key = key;
+    badge.style.cssText = 'position:absolute;top:4px;right:calc(50% - 14px);width:7px;height:7px;border-radius:50%;background:#e53535;border:1.5px solid var(--bg-panel);display:none;';
+    btn.appendChild(badge);
+  });
+
+  _fetchUnread();
+}
+
+async function _fetchUnread() {
+  try {
+    const d = await fetch('/api/unread').then(r => r.json());
+    _setBadge('dm',       d.dm       || 0);
+    _setBadge('channels', d.channels || 0);
+  } catch(_) {}
+}
+
+function _setBadge(key, count) {
+  _badgeState[key] = count;
+  const show = count > 0;
+  // Sidebar badges
+  document.querySelectorAll(`.nav-badge[data-key="${key}"]`).forEach(b => {
+    b.classList.toggle('show', show);
+    b.textContent = count > 9 ? '9+' : (count > 1 ? count : '');
+  });
+  // Mobile badges
+  document.querySelectorAll(`.mob-badge[data-key="${key}"]`).forEach(b => {
+    b.style.display = show ? 'block' : 'none';
+  });
+}
+
+function _clearBadge(key) { _setBadge(key, 0); }
+
+// Init setelah DOM siap
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initBadges);
+} else {
+  _initBadges();
+}
+
+// Hapus badge saat kunjungi halaman yang relevan
+(function() {
+  const path = location.pathname;
+  if (path.startsWith('/dm'))       _clearBadge('dm');
+  if (path.startsWith('/channels')) _clearBadge('channels');
+})();
 
 // Hover highlight for theme-opt
 document.addEventListener('mouseover', e => {

@@ -104,7 +104,7 @@ io.on('connection', (socket) => {
       encrypted: true
     };
     if (!burn) {
-      try { await Message.create({ channel, user, message, burn: false }); } catch (_) {}
+      try { await Message.create({ channel, user, userId: socket.operatorId || '', message, burn: false }); } catch (_) {}
     }
     io.to(channel).emit('new-message', msg);
   });

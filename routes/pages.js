@@ -12,6 +12,7 @@ const Message       = require('../models/Message');
 const DirectMessage = require('../models/DirectMessage');
 const InviteCode    = require('../models/InviteCode');
 const Log           = require('../models/Log');
+const Zone          = require('../models/Zone');
 const addLog        = require('../utils/logger');
 
 // ── Multer setup ──────────────────────────────────────────────
@@ -44,6 +45,21 @@ router.get('/logs',      (req, res) => sendView(res, 'logs.html'));
 
 // ── API: me ───────────────────────────────────────────────────
 router.get('/api/me', (req, res) => res.json(req.session.user));
+
+// ── API: unread counts (untuk badge notifikasi) ───────────────
+router.get('/api/unread', async (req, res) => {
+  const me = req.session.user.id;
+  try {
+    const [dmCount, channelCount] = await Promise.all([
+      DirectMessage.countDocuments({ to: me, readAt: null }),
+      Message.countDocuments({
+        createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        user: { $ne: req.session.user.name }   // pesan dari orang lain dalam 24 jam
+      })
+    ]);
+    res.json({ dm: dmCount, channels: channelCount });
+  } catch { res.json({ dm: 0, channels: 0 }); }
+});
 
 // PUT /api/me — user edit profile sendiri
 router.put('/api/me', async (req, res) => {
@@ -101,9 +117,114 @@ router.put('/api/me', async (req, res) => {
 
 // ── API: channels ─────────────────────────────────────────────
 router.get('/api/channels', async (req, res) => {
+  const me = req.session.user.id;
   try {
-    res.json(await Channel.find({}).select('-_id -__v').lean());
+    const all = await Channel.find({}).select('-__v').lean();
+    // Filter: publik (members kosong) atau user adalah member
+    const visible = all.filter(c =>
+      c.clearance <= req.session.user.clearance &&
+      (c.members.length === 0 || c.members.includes(me))
+    );
+    res.json(visible);
   } catch { res.json([]); }
+});
+
+// POST — buat channel baru
+router.post('/api/channels', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const { id, name, clearance, topic, members } = req.body;
+    if (!id || !name) return res.status(400).json({ error: 'ID dan nama wajib diisi' });
+    const channelId = id.toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
+    const existing  = await Channel.findOne({ id: channelId });
+    if (existing) return res.status(400).json({ error: `Channel "${channelId}" sudah ada` });
+    const ch = await Channel.create({
+      id: channelId, name, topic: topic || '',
+      clearance: parseInt(clearance) || 2,
+      members: Array.isArray(members) ? members : [],
+      createdBy: u.id
+    });
+    const io = req.app.get('io');
+    if (io) io.emit('channel-created', ch);
+    addLog({ actor: u.id, actorName: u.name, type:'SYSTEM',
+      action: `Channel dibuat: ${channelId} — ${name}`, io });
+    res.json({ success: true, channel: ch });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// PUT — edit channel (nama, topic, clearance)
+router.put('/api/channels/:id', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const { name, topic, clearance, status } = req.body;
+    const update = {};
+    if (name)      update.name      = name;
+    if (topic !== undefined) update.topic = topic;
+    if (clearance) update.clearance = parseInt(clearance);
+    if (status)    update.status    = status;
+    const ch = await Channel.findOneAndUpdate({ id: req.params.id }, update, { new: true });
+    if (!ch) return res.status(404).json({ error: 'Channel tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('channel-updated', ch);
+    res.json({ success: true, channel: ch });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// DELETE — hapus channel
+router.delete('/api/channels/:id', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN'].includes(u.role))
+    return res.status(403).json({ error: 'Hanya CHIEF/SA/ADMIN yang bisa menghapus channel' });
+  try {
+    const ch = await Channel.findOneAndDelete({ id: req.params.id });
+    if (!ch) return res.status(404).json({ error: 'Channel tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('channel-deleted', { id: req.params.id });
+    addLog({ actor: u.id, actorName: u.name, type:'SYSTEM',
+      action: `Channel dihapus: ${req.params.id}`, io, severity: 'warning' });
+    res.json({ success: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// POST — tambah member ke channel
+router.post('/api/channels/:id/members', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const { operatorId } = req.body;
+    const ch = await Channel.findOneAndUpdate(
+      { id: req.params.id },
+      { $addToSet: { members: operatorId } },
+      { new: true }
+    );
+    if (!ch) return res.status(404).json({ error: 'Channel tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('channel-updated', ch);
+    res.json({ success: true, channel: ch });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// DELETE — hapus member dari channel
+router.delete('/api/channels/:id/members/:opId', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const ch = await Channel.findOneAndUpdate(
+      { id: req.params.id },
+      { $pull: { members: req.params.opId } },
+      { new: true }
+    );
+    if (!ch) return res.status(404).json({ error: 'Channel tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('channel-updated', ch);
+    res.json({ success: true, channel: ch });
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 // ── API: sitreps ──────────────────────────────────────────────
@@ -140,6 +261,59 @@ router.put('/api/sitreps/:id', async (req, res) => {
       action: `Sitrep ${req.params.id} → ${req.body.status.toUpperCase()}`,
       target: req.params.id, details: { status: req.body.status }, io: req.app.get('io') });
     res.json({ success: true, sitrep: s });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// ── API: zones ────────────────────────────────────────────────
+router.get('/api/zones', async (req, res) => {
+  try { res.json(await Zone.find({ active: true }).lean()); }
+  catch { res.json([]); }
+});
+
+router.post('/api/zones', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const { name, type, shape, bounds, center, radius, clearance } = req.body;
+    // Auto-generate zoneId
+    const base = (name || 'ZONE').toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 8);
+    let zoneId = base, i = 2;
+    while (await Zone.exists({ zoneId })) zoneId = base + '-' + i++;
+    const zone = await Zone.create({ zoneId, name, type: type||'restricted', shape: shape||'rectangle', bounds: bounds||[], center, radius: radius||1000, clearance: parseInt(clearance)||1, createdBy: u.id });
+    const io = req.app.get('io');
+    if (io) io.emit('zone-update', zone);
+    addLog({ actor: u.id, actorName: u.name, type:'SYSTEM', action:`Zona dibuat: ${zone.name} (${zone.zoneId})`, io });
+    res.json({ success: true, zone });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.put('/api/zones/:id', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN','CMD'].includes(u.role) && u.clearance < 3)
+    return res.status(403).json({ error: 'Insufficient clearance' });
+  try {
+    const update = { ...req.body, updatedAt: new Date() };
+    delete update.zoneId;
+    const zone = await Zone.findOneAndUpdate({ zoneId: req.params.id }, update, { new: true });
+    if (!zone) return res.status(404).json({ error: 'Zone tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('zone-update', zone);
+    res.json({ success: true, zone });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+router.delete('/api/zones/:id', async (req, res) => {
+  const u = req.session.user;
+  if (!['CHIEF','SA','ADMIN'].includes(u.role))
+    return res.status(403).json({ error: 'Hanya CHIEF/SA/ADMIN yang bisa menghapus zona' });
+  try {
+    const zone = await Zone.findOneAndDelete({ zoneId: req.params.id });
+    if (!zone) return res.status(404).json({ error: 'Zone tidak ditemukan' });
+    const io = req.app.get('io');
+    if (io) io.emit('zone-deleted', { id: req.params.id });
+    addLog({ actor: u.id, actorName: u.name, type:'SYSTEM', action:`Zona dihapus: ${zone.name}`, io, severity:'warning' });
+    res.json({ success: true });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
@@ -220,10 +394,46 @@ router.get('/api/messages/:channel', async (req, res) => {
   try {
     const msgs = await Message.find({ channel: req.params.channel }).sort({ createdAt: -1 }).limit(50).lean();
     res.json(msgs.reverse().map(m => ({
-      id: m._id, user: m.user, message: m.message, burn: m.burn, encrypted: m.encrypted,
+      id: m._id, user: m.user, userId: m.userId, message: m.message,
+      burn: m.burn, encrypted: m.encrypted, edited: m.edited || false,
       time: new Date(m.createdAt).toUTCString().split(' ')[4].slice(0, 5)
     })));
   } catch { res.json([]); }
+});
+
+// PUT — edit pesan
+router.put('/api/messages/:id', async (req, res) => {
+  const u = req.session.user;
+  try {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Pesan tidak ditemukan' });
+    const isOwner = msg.userId === u.id || msg.user === u.name;
+    const isAdmin = ['CHIEF','SA','ADMIN'].includes(u.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Tidak bisa edit pesan orang lain' });
+    msg.message = req.body.message || msg.message;
+    msg.edited  = true;
+    await msg.save();
+    const io = req.app.get('io');
+    if (io) io.to(msg.channel).emit('message-edited', { id: msg._id, channel: msg.channel, message: msg.message });
+    res.json({ success: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// DELETE — hapus pesan
+router.delete('/api/messages/:id', async (req, res) => {
+  const u = req.session.user;
+  try {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Pesan tidak ditemukan' });
+    const isOwner = msg.userId === u.id || msg.user === u.name;
+    const isAdmin = ['CHIEF','SA','ADMIN'].includes(u.role);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Tidak bisa hapus pesan orang lain' });
+    const channel = msg.channel;
+    await Message.findByIdAndDelete(req.params.id);
+    const io = req.app.get('io');
+    if (io) io.to(channel).emit('message-deleted', { id: req.params.id, channel });
+    res.json({ success: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 // Helper: build operator-position payload
@@ -351,12 +561,16 @@ router.post('/api/position', async (req, res) => {
 // ── API: operators ────────────────────────────────────────────
 router.get('/api/operators', async (req, res) => {
   try {
+    const userSockets = req.app.get('userSockets') || {};
+    const onlineIds   = new Set(Object.keys(userSockets));
     const ops = await Operator.find({}).select('-passphrase').lean();
     res.json(ops.map(o => ({
       id: o.operatorId, name: o.name, role: o.role, email: o.email,
       clearance: o.clearance, active: o.active,
+      online: onlineIds.has(o.operatorId),   // true hanya jika socket aktif
       lastLogin: o.lastLogin, createdAt: o.createdAt,
-      city: o.city, country: o.country
+      city: o.city, country: o.country,
+      posUpdatedAt: o.posUpdatedAt
     })));
   } catch { res.json([]); }
 });
