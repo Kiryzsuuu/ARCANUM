@@ -119,7 +119,7 @@
 
     /* ── Map Search ───────────────────── */
     #map-search-wrap {
-      position:absolute; top:12px; left:12px; z-index:600;
+      position:absolute; top:12px; left:12px; z-index:900;
       width:300px; max-width:calc(100% - 260px);
     }
     #map-search-bar {
@@ -428,60 +428,115 @@
   }
 
   // ══════════════════════════════════════════════
-  //  MAP SEARCH (Nominatim + Overpass POI)
+  //  MAP SEARCH — Nominatim + Overpass POI
   // ══════════════════════════════════════════════
-  let _srMarker  = null;
+  let _srMarkers = [];  // multi-marker untuk hasil Overpass
   let _srTimer   = null;
-  let _srAbort   = null;
+  let _srReqId   = 0;   // untuk cancel stale request
 
-  // POI icon mapping
-  const _POI_ICON = {
-    // Kesehatan
-    hospital:'🏥', clinic:'🏥', doctors:'🏥', dentist:'🦷', pharmacy:'💊', veterinary:'🐾',
-    // Bahan Bakar & Otomotif
-    fuel:'⛽', car_wash:'🚗', car_repair:'🔧',
-    // Makanan & Minuman
-    restaurant:'🍽', cafe:'☕', fast_food:'🍔', food_court:'🍱', bar:'🍺', pub:'🍺', bakery:'🥐',
-    // Pendidikan
-    school:'🏫', university:'🎓', college:'🎓', kindergarten:'🏫', library:'📚',
-    // Keuangan
-    bank:'🏦', atm:'💳',
-    // Keamanan & Darurat
-    police:'🚔', fire_station:'🚒', ambulance_station:'🚑',
-    // Belanja
-    supermarket:'🛒', mall:'🏬', marketplace:'🛍', convenience:'🏪', shop:'🏪',
-    // Akomodasi
-    hotel:'🏨', motel:'🏨', guest_house:'🏨', hostel:'🏨',
-    // Ibadah
-    mosque:'🕌', church:'⛪', temple:'🛕', place_of_worship:'🛕',
-    // Alam & Rekreasi
-    park:'🌳', garden:'🌹', forest:'🌲', beach:'🏖', viewpoint:'🔭',
-    // Transportasi
-    airport:'✈', bus_station:'🚌', bus_stop:'🚏', train_station:'🚆',
-    ferry_terminal:'⛴', taxi:'🚕', parking:'🅿',
-    // Fasilitas Publik
-    post_office:'📮', townhall:'🏛', courthouse:'⚖', embassy:'🏛',
-    community_centre:'🏢', social_facility:'🏢',
-    // Hiburan
-    stadium:'🏟', cinema:'🎬', museum:'🏛', theatre:'🎭', nightclub:'🎵',
-    // Akomodasi & Wisata
-    tourist_attraction:'📸', monument:'🗿', castle:'🏰',
-    // Lainnya
-    water:'💧', river:'🌊', peak:'⛰', residential:'🏘', commercial:'🏢',
+  // ── Icon map ──────────────────────────────────
+  const _ICON = {
+    hospital:'🏥',clinic:'🏥',doctors:'🏥',dentist:'🦷',pharmacy:'💊',
+    health_post:'🏥',health_center:'🏥',
+    fuel:'⛽',car_wash:'🚗',car_repair:'🔧',charging_station:'⚡',
+    restaurant:'🍽',cafe:'☕',fast_food:'🍔',food_court:'🍱',bar:'🍺',
+    pub:'🍺',bakery:'🥐',ice_cream:'🍦',juice_bar:'🥤',
+    school:'🏫',university:'🎓',college:'🎓',kindergarten:'🏫',
+    library:'📚',research_institute:'🔬',
+    bank:'🏦',atm:'💳',money_changer:'💱',
+    police:'🚔',fire_station:'🚒',ambulance_station:'🚑',
+    supermarket:'🛒',mall:'🏬',marketplace:'🛍',
+    convenience:'🏪',shop:'🏪',department_store:'🏬',
+    clothes:'👗',shoes:'👟',electronics:'📱',
+    hotel:'🏨',motel:'🏨',guest_house:'🏨',hostel:'🏨',
+    camp_site:'⛺',chalet:'🏡',
+    mosque:'🕌',church:'⛪',temple:'🛕',
+    place_of_worship:'🛕',vihara:'🛕',pura:'🛕',
+    park:'🌳',garden:'🌹',forest:'🌲',
+    beach:'🏖',viewpoint:'🔭',peak:'⛰',
+    airport:'✈',aerodrome:'✈',
+    bus_station:'🚌',bus_stop:'🚏',
+    station:'🚆',train_station:'🚆',subway_entrance:'🚇',
+    ferry_terminal:'⛴',taxi:'🚕',parking:'🅿',
+    post_office:'📮',townhall:'🏛',courthouse:'⚖',
+    embassy:'🏛',consulate:'🏛',
+    community_centre:'🏢',social_facility:'🤝',
+    stadium:'🏟',cinema:'🎬',museum:'🏛',
+    theatre:'🎭',nightclub:'🎵',arts_centre:'🎨',
+    tourist_attraction:'📸',monument:'🗿',castle:'🏰',
+    water:'💧',river:'🌊',waterway:'🌊',
+    residential:'🏘',commercial:'🏢',industrial:'🏭',
+    playground:'🛝',sports_centre:'🏋',swimming_pool:'🏊',
+    veterinary:'🐾',animal_shelter:'🐾',
   };
 
-  function _getPOIIcon(tags = {}, type = '', cls = '') {
-    const amenity = tags.amenity || type || cls;
-    const tourism = tags.tourism || '';
-    const leisure = tags.leisure || '';
-    const shop    = tags.shop || '';
-    const natural = tags.natural || '';
-
-    return _POI_ICON[amenity] || _POI_ICON[tourism] || _POI_ICON[leisure]
-        || _POI_ICON[shop]    || _POI_ICON[natural]  || _POI_ICON[type]
-        || _POI_ICON[cls]     || '📍';
+  function _icon(tags = {}) {
+    const v = tags.amenity || tags.tourism || tags.leisure || tags.shop
+           || tags.aeroway || tags.railway || tags.highway || '';
+    return _ICON[v] || _ICON[tags.building] || '📍';
   }
 
+  // ── POI keyword → Overpass tag ─────────────────
+  const _KW = [
+    [/rumah sakit|rs\b|rsud|rsia|rsup/,'amenity=hospital'],
+    [/klinik|puskesmas|poliklinik/,'amenity=clinic'],
+    [/apotek|apotik/,'amenity=pharmacy'],
+    [/dokter|bidan/,'amenity=doctors'],
+    [/spbu|pom bensin|pertamina|bbm|solar|bahan bakar/,'amenity=fuel'],
+    [/restoran|rumah makan|warteg|warung makan/,'amenity=restaurant'],
+    [/kafe|coffee|kedai kopi/,'amenity=cafe'],
+    [/fast food|mcd|kfc|burger|pizza/,'amenity=fast_food'],
+    [/indomaret|alfamart|minimarket|toko kelontong/,'shop=convenience'],
+    [/supermarket|hypermart|carrefour/,'amenity=supermarket'],
+    [/mall|plaza|pusat perbelanjaan|ruko/,'shop=mall'],
+    [/hotel|penginapan|losmen|wisma/,'tourism=hotel'],
+    [/masjid|musholla|surau/,'amenity=mosque'],
+    [/gereja/,'amenity=church'],
+    [/vihara|klenteng|pura/,'amenity=place_of_worship'],
+    [/polisi|polsek|polres|polda|kantor polisi/,'amenity=police'],
+    [/damkar|pemadam/,'amenity=fire_station'],
+    [/atm\b/,'amenity=atm'],
+    [/bank\b/,'amenity=bank'],
+    [/bandara|airport/,'aeroway=aerodrome'],
+    [/stasiun kereta|stasiun krl/,'railway=station'],
+    [/terminal bus|terminal angkot/,'amenity=bus_station'],
+    [/halte|bus stop/,'highway=bus_stop'],
+    [/sekolah|sd\b|smp\b|sma\b|madrasah/,'amenity=school'],
+    [/universitas|kampus|perguruan tinggi/,'amenity=university'],
+    [/parkir\b/,'amenity=parking'],
+    [/kantor pos/,'amenity=post_office'],
+    [/kelurahan|kantor desa/,'amenity=townhall'],
+    [/bioskop|cinema/,'amenity=cinema'],
+    [/museum/,'tourism=museum'],
+    [/taman\b|alun.alun/,'leisure=park'],
+    [/pantai|beach/,'natural=beach'],
+    [/bengkel|servis mobil/,'shop=car_repair'],
+    [/laundry|binatu/,'shop=laundry'],
+    [/salon|barbershop/,'shop=hairdresser'],
+    [/warnet|internet/,'amenity=internet_cafe'],
+  ];
+
+  function _detectPOI(q) {
+    const lower = q.toLowerCase();
+    for (const [rx, tag] of _KW) {
+      if (rx.test(lower)) return tag;
+    }
+    return null;
+  }
+
+  // ── Distance helper ────────────────────────────
+  function _dist(lat1, lng1, lat2, lng2) {
+    const R = 6371000, d2r = Math.PI/180;
+    const dLat = (lat2-lat1)*d2r, dLng = (lng2-lng1)*d2r;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function _fmtDist(m) {
+    return m < 1000 ? Math.round(m) + ' m' : (m/1000).toFixed(1) + ' km';
+  }
+
+  // ── Init search bar ────────────────────────────
   function _initMapSearch() {
     const input = document.getElementById('map-search-input');
     const clear = document.getElementById('map-search-clear');
@@ -490,75 +545,146 @@
       const q = this.value.trim();
       clear.style.display = q ? '' : 'none';
       clearTimeout(_srTimer);
-      if (q.length < 2) { _hideResults(); return; }
-      _srTimer = setTimeout(() => _doSearch(q), 450);
+      if (q.length < 1) { _hideResults(); return; }
+      _srTimer = setTimeout(() => _doSearch(q), 350);
     });
 
     input.addEventListener('keydown', e => {
       if (e.key === 'Escape') clearMapSearch();
+      if (e.key === 'Enter') { clearTimeout(_srTimer); _doSearch(input.value.trim()); }
     });
 
-    // Close on outside click
     document.addEventListener('click', e => {
       if (!document.getElementById('map-search-wrap').contains(e.target)) _hideResults();
     });
   }
 
+  // ── Main search ────────────────────────────────
   async function _doSearch(q) {
-    const res = document.getElementById('map-search-results');
+    if (!q) return;
+    const myId = ++_srReqId;
+    const res  = document.getElementById('map-search-results');
     res.style.display = '';
-    res.innerHTML = `<div class="sr-loading"><i class="ti ti-loader" style="animation:spin .8s linear infinite;font-size:14px;"></i> Mencari "${q}"…</div>`;
+    res.innerHTML = `<div class="sr-loading"><span class="sr-spin"></span>Mencari <b>${q}</b>…</div>`;
 
-    if (_srAbort) _srAbort.abort();
-    _srAbort = new AbortController();
+    const center  = map?.getCenter() || { lat:-6.2, lng:106.8 };
+    const bounds  = map?.getBounds();
+    const viewbox = bounds
+      ? `${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()}`
+      : '';
+
+    // Deteksi apakah query adalah kategori POI
+    const poiTag = _detectPOI(q);
 
     try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=10&addressdetails=1&extratags=1&namedetails=1`,
-        { signal: _srAbort.signal, headers: { 'Accept-Language': 'id,en' } }
-      );
-      const data = await r.json();
+      let items = [];
 
-      if (!data.length) {
+      if (poiTag) {
+        // Overpass: cari POI di sekitar pusat peta (radius 5km)
+        items = await _overpassSearch(poiTag, center.lat, center.lng, myId);
+      }
+
+      // Selalu juga cari via Nominatim (untuk nama tempat spesifik)
+      if (myId !== _srReqId) return;
+      const nominatimItems = await _nominatimSearch(q, viewbox, center, myId);
+      if (myId !== _srReqId) return;
+
+      // Gabung, hindari duplikat berdasarkan koordinat
+      const seen = new Set(items.map(i => `${i.lat.toFixed(4)},${i.lng.toFixed(4)}`));
+      for (const n of nominatimItems) {
+        const key = `${n.lat.toFixed(4)},${n.lng.toFixed(4)}`;
+        if (!seen.has(key)) { seen.add(key); items.push(n); }
+      }
+
+      // Sort by distance
+      items.sort((a, b) => a.dist - b.dist);
+      items = items.slice(0, 12);
+
+      if (!items.length) {
         res.innerHTML = '<div class="sr-loading" style="color:var(--ash);">Tidak ditemukan. Coba kata kunci lain.</div>';
         return;
       }
 
-      res.innerHTML = data.map(item => {
-        const icon = _getPOIIcon({}, item.type, item.class);
-        const name = item.namedetails?.name || item.display_name.split(',')[0].trim();
-        const parts = item.display_name.split(',');
-        const addr  = parts.slice(1, 4).join(',').trim();
-        const typeLabel = (item.type || item.class || '').replace(/_/g,' ');
-        return `<div class="sr-item" onclick="_srSelect(${item.lat},${item.lon},${JSON.stringify(name)},${JSON.stringify(addr)},${JSON.stringify(icon)},${JSON.stringify(typeLabel)})">
-          <span class="sr-icon">${icon}</span>
+      res.innerHTML = items.map(item => `
+        <div class="sr-item" onclick="_srSelect(${item.lat},${item.lng},${JSON.stringify(item.name)},${JSON.stringify(item.addr)},${JSON.stringify(item.icon)},${JSON.stringify(item.type || '')})">
+          <span class="sr-icon">${item.icon}</span>
           <div class="sr-body">
-            <div class="sr-name">${name}</div>
-            ${addr ? `<div class="sr-addr">${addr}</div>` : ''}
-            ${typeLabel ? `<div class="sr-type">${typeLabel}</div>` : ''}
+            <div class="sr-name">${item.name}</div>
+            ${item.addr ? `<div class="sr-addr">${item.addr}</div>` : ''}
+            <div class="sr-dist">${item.type ? `<span class="sr-type">${item.type}</span> · ` : ''}${_fmtDist(item.dist)}</div>
           </div>
-        </div>`;
-      }).join('');
+        </div>`).join('');
 
     } catch(e) {
-      if (e.name === 'AbortError') return;
-      res.innerHTML = '<div class="sr-loading" style="color:var(--siaga);"><i class="ti ti-alert-triangle"></i> Gagal mencari — cek koneksi internet.</div>';
+      if (myId !== _srReqId) return;
+      res.innerHTML = '<div class="sr-loading" style="color:var(--siaga);"><i class="ti ti-alert-triangle"></i> Gagal — cek koneksi internet.</div>';
     }
   }
 
-  function _srSelect(lat, lng, name, addr, icon, typeLabel) {
-    // Hapus marker lama
-    if (_srMarker) { map.removeLayer(_srMarker); _srMarker = null; }
+  // ── Nominatim search ───────────────────────────
+  async function _nominatimSearch(q, viewbox, center, myId) {
+    const params = new URLSearchParams({
+      q, format:'json', limit:'10',
+      addressdetails:'1', namedetails:'1',
+      'accept-language':'id',
+    });
+    if (viewbox) { params.set('viewbox', viewbox); params.set('bounded','0'); }
 
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
+    if (myId !== _srReqId) return [];
+    const data = await r.json();
+
+    return data.map(d => {
+      const lat  = parseFloat(d.lat), lng = parseFloat(d.lon);
+      const name = d.namedetails?.name || d.display_name.split(',')[0].trim();
+      const parts= d.display_name.split(',');
+      const addr = parts.slice(1, 4).map(s=>s.trim()).filter(Boolean).join(', ');
+      const tags = { amenity:d.type, tourism:d.class };
+      return {
+        lat, lng, name, addr,
+        icon: _ICON[d.type] || _ICON[d.class] || '📍',
+        type: (d.type || d.class || '').replace(/_/g,' '),
+        dist: _dist(center.lat, center.lng, lat, lng),
+        source: 'nominatim',
+      };
+    });
+  }
+
+  // ── Overpass search ────────────────────────────
+  async function _overpassSearch(tag, lat, lng, myId) {
+    const [key, val] = tag.split('=');
+    const radius = 5000;
+    const query  = `[out:json][timeout:12];(node["${key}"="${val}"](around:${radius},${lat},${lng});way["${key}"="${val}"](around:${radius},${lat},${lng});relation["${key}"="${val}"](around:${radius},${lat},${lng}););out center 12;`;
+    const r = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+    if (myId !== _srReqId) return [];
+    const data = await r.json();
+
+    return (data.elements || []).map(el => {
+      const elLat = el.lat ?? el.center?.lat ?? 0;
+      const elLng = el.lon ?? el.center?.lon ?? 0;
+      const name  = el.tags?.name || el.tags?.['name:en'] || `${val.replace(/_/g,' ')} (tanpa nama)`;
+      const addr  = [el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(', ');
+      return {
+        lat: elLat, lng: elLng, name, addr,
+        icon: _icon(el.tags || {}),
+        type: (el.tags?.[key] || val).replace(/_/g,' '),
+        dist: _dist(lat, lng, elLat, elLng),
+        source: 'overpass',
+      };
+    }).filter(e => e.lat && e.lng);
+  }
+
+  // ── Select result ──────────────────────────────
+  function _srSelect(lat, lng, name, addr, icon, typeLabel) {
+    _srClearMarkers();
     lat = parseFloat(lat); lng = parseFloat(lng);
 
-    // Marker emoji floating
     const markerEl = L.divIcon({
-      html: `<div style="font-size:32px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.8));line-height:1;">${icon}</div>`,
-      className: '', iconSize: [36, 36], iconAnchor: [18, 36]
+      html: `<div style="font-size:34px;filter:drop-shadow(0 3px 10px rgba(0,0,0,.9));line-height:1;">${icon}</div>`,
+      className:'', iconSize:[38,38], iconAnchor:[19,38]
     });
 
-    _srMarker = L.marker([lat, lng], { icon: markerEl, zIndexOffset: 1000 })
+    const m = L.marker([lat,lng], { icon:markerEl, zIndexOffset:2000 })
       .bindPopup(`
         <div class="map-popup">
           <div class="pop-name" style="color:#EF9F27;">${icon} ${name}</div>
@@ -569,11 +695,11 @@
             <i class="ti ti-navigation"></i> Navigasi ke sini
           </div>
         </div>
-      `, { maxWidth: 280 })
-      .addTo(map)
-      .openPopup();
+      `, { maxWidth:280 })
+      .addTo(map).openPopup();
 
-    map.flyTo([lat, lng], 16, { duration: 1.2 });
+    _srMarkers.push(m);
+    map.flyTo([lat,lng], 16, { duration:1.2 });
     _hideResults();
     document.getElementById('map-search-input').value = name;
     document.getElementById('map-search-clear').style.display = '';
@@ -581,25 +707,31 @@
 
   function _srNavigate(lat, lng, name) {
     const fakeId = 'search__' + Date.now();
-    operatorData[fakeId] = { id: fakeId, lat, lng, name };
+    operatorData[fakeId] = { id:fakeId, lat:parseFloat(lat), lng:parseFloat(lng), name };
     navigateTo(fakeId, name);
     setTimeout(() => delete operatorData[fakeId], 8000);
     map.closePopup();
   }
 
+  function _srClearMarkers() {
+    _srMarkers.forEach(m => map.removeLayer(m));
+    _srMarkers = [];
+  }
+
   function _hideResults() {
-    document.getElementById('map-search-results').style.display = 'none';
+    const r = document.getElementById('map-search-results');
+    if (r) r.style.display = 'none';
   }
 
   function clearMapSearch() {
     document.getElementById('map-search-input').value = '';
     document.getElementById('map-search-clear').style.display = 'none';
     _hideResults();
-    if (_srMarker) { map.removeLayer(_srMarker); _srMarker = null; }
+    _srClearMarkers();
   }
 
-  // CSS spin keyframe (inject once)
-  (function(){ const s = document.createElement('style'); s.textContent='@keyframes spin{to{transform:rotate(360deg)}}'; document.head.appendChild(s); })();
+  // Inject spin CSS once
+  (function(){ const s=document.createElement('style'); s.textContent='.sr-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--cmd);border-radius:50%;animation:_srSpin .7s linear infinite;margin-right:6px;vertical-align:middle;flex-shrink:0}@keyframes _srSpin{to{transform:rotate(360deg)}}.sr-dist{font-size:8px;color:var(--cmd);margin-top:3px;letter-spacing:.04em}.sr-type{color:var(--ash);text-transform:capitalize}'; document.head.appendChild(s); })();
 
   // ══════════════════════════════════════════════
   //  MAP INIT

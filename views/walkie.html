@@ -419,6 +419,11 @@
   let wtActive     = false;
   const MAX_REC_S  = 60;
 
+  // ── Streaming state (MSE realtime) ───────────────
+  let _chunkSeq    = 0;
+  let _isFirst     = true;
+  const _mse = { audio:null, source:null, sb:null, queue:[], ready:false, active:false, mime:'' };
+
   function _stGet() { try { return JSON.parse(localStorage.getItem(WT_LS) || 'null'); } catch { return null; } }
   function _stSave(v) { if (v) localStorage.setItem(WT_LS, JSON.stringify(v)); else localStorage.removeItem(WT_LS); }
 
@@ -434,8 +439,9 @@
       wSocket.emit('register', currentUser.id);
       if (currentCh && wtActive) wSocket.emit('walkie-join', { channel: currentCh });
     });
-    wSocket.on('walkie-keying',  ({ from, role }) => onIncoming(from, role));
-    wSocket.on('walkie-unkey',   ()               => offIncoming());
+    wSocket.on('walkie-keying',  ({ from, role }) => { onIncoming(from, role); _mseInit(); });
+    wSocket.on('walkie-chunk',   (data)           => _mseChunk(data));
+    wSocket.on('walkie-unkey',   ()               => { offIncoming(); _mseEnd(); });
     wSocket.on('walkie-receive', (data)           => onReceive(data));
     wSocket.on('walkie-members', ({ count })      => setMembers(count));
 
@@ -576,7 +582,7 @@
     if (!audioStream || isRecording || !currentCh) return;
     if (audioCtx?.state === 'suspended') audioCtx.resume();
 
-    audioChunks   = [];
+    audioChunks = []; _chunkSeq = 0; _isFirst = true;
     const mime    = _getMime();
     try {
       mediaRecorder = new MediaRecorder(audioStream, mime ? { mimeType: mime } : {});
@@ -584,7 +590,17 @@
       mediaRecorder = new MediaRecorder(audioStream);
     }
 
-    mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) audioChunks.push(ev.data); };
+    mediaRecorder.ondataavailable = async ev => {
+      if (ev.data.size === 0) return;
+      audioChunks.push(ev.data);
+      // Stream chunk realtime ke penerima
+      const ab = await ev.data.arrayBuffer();
+      wSocket.emit('walkie-chunk', {
+        channel: currentCh, chunk: ab, seq: _chunkSeq++,
+        mimeType: mediaRecorder.mimeType, isFirst: _isFirst
+      });
+      _isFirst = false;
+    };
 
     mediaRecorder.onstop = async () => {
       if (!audioChunks.length || !currentCh) return;
@@ -692,6 +708,119 @@
   }
   function _stopViz() { cancelAnimationFrame(vizRaf); }
 
+  // ══════════════════════════════════════════════
+  //  REALTIME STREAMING — MediaSource Extensions
+  // ══════════════════════════════════════════════
+
+  function _mseSupports(mime) {
+    return typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported(mime);
+  }
+
+  function _mseInit() {
+    // Reset state lama dulu
+    _mseDestroy();
+
+    // Pilih codec yang didukung browser
+    const mimes = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+    const mime  = mimes.find(_mseSupports) || '';
+    if (!mime) return; // fallback ke blob di onReceive
+
+    _mse.mime   = mime;
+    _mse.active = true;
+    _mse.queue  = [];
+    _mse.ready  = false;
+
+    const ms = new MediaSource();
+    _mse.source = ms;
+
+    const audio = new Audio();
+    audio.src = URL.createObjectURL(ms);
+    audio.autoplay = true;
+    _mse.audio = audio;
+
+    ms.addEventListener('sourceopen', () => {
+      try {
+        const sb = ms.addSourceBuffer(mime);
+        sb.mode = 'sequence';  // penting untuk streaming tanpa timestamp
+        _mse.sb = sb;
+        sb.addEventListener('updateend', _mseFlush);
+        _mse.ready = true;
+        audio.play().catch(e => console.warn('MSE play:', e));
+        _mseFlush(); // flush chunk yang sudah antri
+      } catch(e) {
+        console.warn('MSE sourceopen error:', e);
+        _mse.active = false;
+      }
+    }, { once: true });
+  }
+
+  function _mseChunk({ chunk, mimeType, isFirst }) {
+    if (!_mse.active) return;
+    // Jika format berbeda dari yang diinit, reset MSE
+    if (isFirst && mimeType && mimeType !== _mse.mime) {
+      _mseDestroy();
+      _mse.mime = mimeType;
+      _mseInit();
+    }
+    _mse.queue.push(chunk instanceof ArrayBuffer ? chunk : new Uint8Array(chunk).buffer);
+    _mseFlush();
+  }
+
+  function _mseFlush() {
+    if (!_mse.ready || !_mse.sb || _mse.sb.updating || !_mse.queue.length) return;
+    try {
+      _mse.sb.appendBuffer(_mse.queue.shift());
+    } catch(e) {
+      // SourceBuffer mungkin sudah di-end — abaikan
+    }
+  }
+
+  function _mseEnd() {
+    // Beri waktu 800ms agar chunk terakhir sempat diputar
+    setTimeout(() => {
+      if (_mse.source?.readyState === 'open') {
+        try {
+          if (_mse.sb && !_mse.sb.updating) _mse.source.endOfStream();
+        } catch(_) {}
+      }
+    }, 800);
+  }
+
+  function _mseDestroy() {
+    if (_mse.source?.readyState === 'open') {
+      try { _mse.source.endOfStream(); } catch(_) {}
+    }
+    if (_mse.audio) { _mse.audio.pause(); _mse.audio.src = ''; }
+    _mse.audio = null; _mse.source = null; _mse.sb = null;
+    _mse.queue = []; _mse.ready = false; _mse.active = false;
+  }
+
+  // ── AudioContext playback (untuk feed history + fallback) ────────
+  async function _playBlobAudio(blob, onEnd) {
+    try {
+      const ab  = await blob.arrayBuffer();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      const buf = await ctx.decodeAudioData(ab);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      src.onended = () => { onEnd?.(); ctx.close().catch(() => {}); };
+      return { stop() { try { src.stop(); } catch(_) {} ctx.close().catch(() => {}); } };
+    } catch(e) {
+      console.warn('AudioContext decode failed, fallback Audio:', e.message);
+      // Fallback ke HTML Audio element
+      const url = URL.createObjectURL(blob);
+      const aud = new Audio(url);
+      aud.onended = () => { URL.revokeObjectURL(url); onEnd?.(); };
+      const p = aud.play();
+      if (p) p.catch(err => console.error('Audio.play failed:', err));
+      return { stop() { aud.pause(); URL.revokeObjectURL(url); } };
+    }
+  }
+
   // ── Incoming (full-duplex: tidak blok PTT) ────────────────────
   function onIncoming(from, role) {
     isReceiving = true;
@@ -705,18 +834,15 @@
     document.getElementById('wt-incoming').classList.remove('show');
   }
 
-  // ── Receive audio ─────────────────────────────────
+  // ── Receive audio (blob penuh = untuk history feed) ────────────
   function onReceive({ from, role, audio, mimeType, duration, ts }) {
     offIncoming();
-    const mime = mimeType || 'audio/webm';
-    const blob = new Blob([audio], { type: mime });
+    const mime = mimeType || 'audio/webm;codecs=opus';
+    const blob = new Blob([audio instanceof ArrayBuffer ? audio : new Uint8Array(audio).buffer], { type: mime });
     _addFeed({ from, role, duration, ts, blob, isSelf: false });
-    // Auto-play — full-duplex: putar langsung tanpa cancel audio sebelumnya
-    const url = URL.createObjectURL(blob);
-    const aud = new Audio(url);
-    aud.onended = () => { URL.revokeObjectURL(url); if (currentAudio === aud) currentAudio = null; };
-    aud.play().catch(() => {});
-    currentAudio = aud;
+    // MSE sudah memainkan audio secara realtime via walkie-chunk.
+    // Jika MSE tidak aktif (browser tidak support), play sekarang sebagai fallback.
+    if (!_mse.active) _playBlobAudio(blob);
   }
 
   // ── Feed rendering ────────────────────────────────
@@ -768,12 +894,9 @@
         if (!item.blob) return;
         document.querySelectorAll('.feed-item.playing').forEach(e => e.classList.remove('playing'));
         el.classList.add('playing');
-        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-        const url = URL.createObjectURL(item.blob);
-        const aud = new Audio(url);
-        aud.onended = () => { el.classList.remove('playing'); URL.revokeObjectURL(url); };
-        aud.play().catch(() => {});
-        currentAudio = aud;
+        if (currentAudio) { currentAudio.stop?.(); currentAudio = null; }
+        _playBlobAudio(item.blob, () => el.classList.remove('playing'))
+          .then(ctrl => { currentAudio = ctrl; });
       });
 
       feed.appendChild(el);

@@ -181,11 +181,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('walkie-keying', ({ channel, name, role }) => {
+    socket._wName = name; socket._wRole = role;
     socket.to(`walkie:${channel}`).emit('walkie-keying', { from: name, role });
   });
 
   socket.on('walkie-unkey', ({ channel }) => {
     socket.to(`walkie:${channel}`).emit('walkie-unkey');
+  });
+
+  // Streaming chunk realtime — teruskan segera tanpa buffer
+  socket.on('walkie-chunk', ({ channel, chunk, seq, mimeType, isFirst }) => {
+    socket.to(`walkie:${channel}`).emit('walkie-chunk', {
+      from: socket._wName || '?', role: socket._wRole || '',
+      chunk, seq, mimeType, isFirst
+    });
   });
 
   socket.on('walkie-audio', ({ channel, audio, mimeType, name, role, duration }) => {
