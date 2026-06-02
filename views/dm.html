@@ -18,7 +18,7 @@
     .cp-title { font-size:13px; font-weight:bold; color:var(--frost); letter-spacing:.06em; margin-bottom:8px; }
     .cp-search { background:var(--bg-app); border:.5px solid var(--border); border-radius:4px; height:30px; display:flex; align-items:center; gap:6px; padding:0 8px; }
     .cp-search input { background:transparent; border:none; outline:none; color:var(--frost); font-family:var(--font); font-size:11px; flex:1; }
-    .contact-item { padding:10px 14px; display:flex; align-items:center; gap:10px; cursor:pointer; border-bottom:.5px solid rgba(12,68,124,.2); text-decoration:none; }
+    .contact-item { padding:12px 16px; display:flex; align-items:center; gap:10px; cursor:pointer; border-bottom:.5px solid rgba(12,68,124,.2); text-decoration:none; }
     .contact-item:hover { background:#070f1c; }
     .contact-item.active { background:var(--deep); border-left:2px solid var(--signal); }
     .c-avatar { width:36px; height:36px; border-radius:50%; background:var(--steel); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:var(--mist); flex-shrink:0; position:relative; }
@@ -32,17 +32,17 @@
     .no-contacts { padding:30px; text-align:center; color:var(--ash); font-size:11px; }
 
     /* ── Chat header ── */
-    .ch-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:10px 16px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .ch-header { background:var(--bg-topbar); border-bottom:.5px solid var(--border); padding:14px 20px; display:flex; align-items:center; gap:12px; flex-shrink:0; }
     .ch-back { background:none; border:none; color:var(--signal); font-size:18px; cursor:pointer; padding:4px; display:none; }
-    .ch-avatar { width:34px; height:34px; border-radius:50%; background:var(--steel); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:var(--frost); flex-shrink:0; }
-    .ch-name { font-size:13px; font-weight:bold; color:var(--frost); }
-    .ch-status { font-size:10px; color:var(--ops); margin-top:1px; }
-    .ch-actions { margin-left:auto; display:flex; gap:6px; }
-    .ch-action-btn { width:32px; height:32px; border-radius:50%; background:transparent; border:.5px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ash); font-size:16px; }
+    .ch-avatar { width:40px; height:40px; border-radius:50%; background:var(--steel); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; color:var(--frost); flex-shrink:0; }
+    .ch-name { font-size:14px; font-weight:bold; color:var(--frost); }
+    .ch-status { font-size:10px; color:var(--ops); margin-top:3px; }
+    .ch-actions { margin-left:auto; display:flex; gap:8px; }
+    .ch-action-btn { width:34px; height:34px; border-radius:50%; background:transparent; border:.5px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ash); font-size:16px; }
     .ch-action-btn:hover { color:var(--signal); border-color:var(--cmd); background:var(--deep); }
 
     /* ── Messages ── */
-    .messages { flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:6px; }
+    .messages { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:8px; }
     .date-divider { text-align:center; font-size:9px; color:var(--ash); padding:8px 0; letter-spacing:.08em; }
     .msg-row { display:flex; align-items:flex-end; gap:6px; }
     .msg-row.self { flex-direction:row-reverse; }
@@ -90,7 +90,7 @@
     .typing-indicator { padding:6px 16px; font-size:10px; color:var(--signal); min-height:20px; flex-shrink:0; }
 
     /* ── Input area ── */
-    .input-wrap { background:var(--bg-topbar); border-top:.5px solid var(--border); padding:8px 12px; flex-shrink:0; }
+    .input-wrap { background:var(--bg-topbar); border-top:.5px solid var(--border); padding:12px 16px; flex-shrink:0; }
 
     /* Attachment preview above input */
     .attach-preview-bar { display:none; background:var(--deep); border:.5px solid var(--cmd); border-radius:8px; padding:8px 10px; margin-bottom:8px; display:none; align-items:center; gap:10px; }

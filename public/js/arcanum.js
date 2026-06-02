@@ -345,13 +345,20 @@ async function initTopbar(pathLabel) {
   // Inject profile panel & theme picker
   injectProfilePanel(user);
   injectThemePicker();
+  _injectNavWidget();
 
   // Geolocation refresh every 5 minutes (300 000 ms)
   startPositionRefresh();
 
-  // Socket listener untuk badge notifikasi realtime
+  // Socket — badge notifikasi + register presence di semua halaman
   if (typeof io !== 'undefined') {
     const _notifSocket = io();
+
+    // Register ke server agar tercatat online (tidak hanya dari halaman grid)
+    _notifSocket.on('connect', () => {
+      _notifSocket.emit('register', user.id);
+    });
+
     _notifSocket.on('dm-receive', () => {
       if (!location.pathname.startsWith('/dm')) {
         _setBadge('dm', (_badgeState.dm || 0) + 1);
@@ -365,6 +372,56 @@ async function initTopbar(pathLabel) {
   }
 
   return user;
+}
+
+// ══════════════════════════════════════════════
+//  NAV LIVE WIDGET — tampil di semua halaman non-grid
+// ══════════════════════════════════════════════
+function _injectNavWidget() {
+  if (location.pathname === '/grid') return;
+  const saved = localStorage.getItem('arcanum-nav');
+  if (!saved) return;
+  try {
+    const { targetName } = JSON.parse(saved);
+    if (!targetName) return;
+    if (document.getElementById('nav-live-widget')) return;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      #nav-live-widget {
+        position:fixed;bottom:72px;right:16px;z-index:7500;
+        background:rgba(4,12,22,.97);border:1.5px solid #22cc44;border-radius:10px;
+        padding:10px 14px;display:flex;align-items:center;gap:10px;
+        box-shadow:0 4px 24px rgba(34,204,68,.25);cursor:pointer;
+        font-family:monospace;min-width:190px;max-width:240px;
+        animation:_nwIn .3s ease;
+      }
+      @keyframes _nwIn { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+      #nav-live-widget:hover { border-color:#44ee66;box-shadow:0 4px 28px rgba(34,204,68,.4); }
+      .nw-pulse { width:8px;height:8px;border-radius:50%;background:#22cc44;flex-shrink:0;
+        animation:ring-pulse 2s ease-out infinite; }
+      @keyframes ring-pulse { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(2.2);opacity:0} }
+    `;
+    document.head.appendChild(style);
+
+    const w = document.createElement('div');
+    w.id = 'nav-live-widget';
+    w.innerHTML = `
+      <div class="nw-pulse"></div>
+      <div style="flex:1;min-width:0;" onclick="window.location='/grid'">
+        <div style="font-size:8px;color:var(--ash,#666);letter-spacing:.08em;text-transform:uppercase;">
+          <i class="ti ti-navigation" style="font-size:9px;"></i> NAVIGASI AKTIF
+        </div>
+        <div style="font-size:11px;color:#22cc44;font-weight:bold;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          → ${targetName}
+        </div>
+      </div>
+      <button title="Hentikan navigasi" onclick="event.stopPropagation();localStorage.removeItem('arcanum-nav');document.getElementById('nav-live-widget').remove();"
+        style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;padding:2px;flex-shrink:0;">×</button>
+    `;
+    w.addEventListener('click', () => { window.location = '/grid'; });
+    document.body.appendChild(w);
+  } catch(_) {}
 }
 
 // ══════════════════════════════════════════════

@@ -75,20 +75,47 @@
 
     @keyframes nav-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-    /* Navigation panel */
-    #nav-panel { position:absolute; bottom:0; left:0; right:240px; background:var(--bg-panel); border-top:.5px solid #22cc44; z-index:1000; display:none; flex-direction:column; max-height:260px; }
-    .nav-header { padding:8px 14px; display:flex; align-items:center; gap:10px; border-bottom:.5px solid var(--border); flex-shrink:0; }
-    .nav-title  { font-size:11px; font-weight:bold; color:#22cc44; letter-spacing:.06em; flex:1; }
-    .nav-meta   { display:flex; gap:16px; padding:8px 14px; border-bottom:.5px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
-    .nav-stat   { display:flex; flex-direction:column; gap:2px; }
-    .nav-stat-val { font-size:15px; font-weight:bold; color:var(--frost); font-family:var(--font); }
-    .nav-stat-lbl { font-size:9px; color:var(--ash); text-transform:uppercase; letter-spacing:.06em; }
-    .nav-steps  { overflow-y:auto; flex:1; padding:6px 14px; }
-    .nav-step   { display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:.5px solid var(--border); }
+    /* ── Navigation Panel (Google Maps style) ── */
+    #nav-panel { position:absolute; bottom:0; left:0; right:240px; background:var(--bg-panel); border-top:2px solid #22cc44; z-index:1000; display:none; flex-direction:column; }
+
+    /* Current turn card — prominent di atas */
+    #nav-turn-card { background:#0a1f0a; border-bottom:.5px solid var(--border); padding:12px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0; }
+    #nav-turn-icon { width:48px; height:48px; border-radius:10px; background:#22cc44; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+    #nav-turn-dist { font-size:22px; font-weight:bold; color:#22cc44; font-family:var(--font); }
+    #nav-turn-road { font-size:11px; color:var(--mist); margin-top:2px; }
+    #nav-turn-inst { font-size:12px; color:var(--frost); font-weight:bold; }
+
+    /* Route alternatives */
+    #nav-routes { display:flex; gap:8px; padding:10px 14px; border-bottom:.5px solid var(--border); flex-shrink:0; overflow-x:auto; }
+    .nav-route-opt { flex-shrink:0; background:var(--deep); border:.5px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; min-width:120px; transition:all .15s; }
+    .nav-route-opt.active { border-color:#22cc44; background:#0a1f0a; }
+    .nav-route-opt:hover { border-color:var(--cmd); }
+    .nav-ro-time { font-size:14px; font-weight:bold; color:var(--frost); }
+    .nav-ro-dist { font-size:10px; color:var(--ash); }
+    .nav-ro-tag  { font-size:8px; padding:1px 5px; border-radius:3px; margin-top:4px; display:inline-block; }
+    .nav-ro-fastest { background:rgba(34,204,68,.2); color:#22cc44; }
+    .nav-ro-alt     { background:rgba(55,138,221,.2); color:#378ADD; }
+    .nav-ro-toll    { background:rgba(239,159,39,.2); color:#EF9F27; }
+
+    /* Stats bar */
+    .nav-meta   { display:flex; gap:16px; padding:8px 14px; border-bottom:.5px solid var(--border); flex-shrink:0; flex-wrap:wrap; align-items:center; }
+    .nav-stat   { display:flex; flex-direction:column; gap:1px; }
+    .nav-stat-val { font-size:14px; font-weight:bold; color:var(--frost); font-family:var(--font); }
+    .nav-stat-lbl { font-size:8px; color:var(--ash); text-transform:uppercase; letter-spacing:.06em; }
+
+    /* Turn-by-turn steps */
+    .nav-steps  { overflow-y:auto; flex:1; padding:4px 14px; max-height:140px; }
+    .nav-step   { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:.5px solid rgba(255,255,255,.04); }
     .nav-step:last-child { border-bottom:none; }
-    .nav-step-num { width:18px; height:18px; border-radius:50%; background:var(--deep); border:.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:8px; color:var(--signal); flex-shrink:0; }
-    .nav-step-txt { font-size:10px; color:var(--mist); flex:1; line-height:1.4; }
+    .nav-step.current { background:rgba(34,204,68,.08); margin:0 -14px; padding:6px 14px; border-radius:4px; }
+    .nav-step-icon { width:28px; height:28px; border-radius:6px; background:var(--deep); border:.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+    .nav-step.current .nav-step-icon { background:#0a1f0a; border-color:#22cc44; }
+    .nav-step-txt { font-size:10px; color:var(--ash); flex:1; line-height:1.4; }
+    .nav-step.current .nav-step-txt { color:var(--frost); font-weight:bold; }
     .nav-step-dist{ font-size:9px; color:var(--ash); white-space:nowrap; }
+
+    /* Traffic toggle — di toolbar (bukan floating) */
+    #traffic-toggle.on { color:#E24B4A !important; border-color:#E24B4A !important; background:rgba(226,75,74,.1) !important; }
 
     /* ── Mobile ──────────────────────── */
     @media (max-width:640px) {
@@ -204,6 +231,10 @@
           <div class="coord-display" id="coord-display" style="margin-left:8px;">
             <i class="ti ti-crosshair" style="font-size:10px;"></i> 0.000, 0.000
           </div>
+          <div class="tool-sep"></div>
+          <div class="layer-toggle" id="traffic-toggle" onclick="toggleTrafficLayer()" title="Real-time traffic (TomTom)">
+            <i class="ti ti-car" style="font-size:12px;"></i> Traffic
+          </div>
         </div>
 
         <div class="map-body">
@@ -212,28 +243,40 @@
 
           <!-- Navigation Panel -->
           <div id="nav-panel">
-            <div class="nav-header">
-              <i class="ti ti-navigation-filled" style="color:#22cc44;font-size:14px;animation:nav-pulse 2s ease-in-out infinite;"></i>
-              <span class="nav-title"><span id="nav-target-name">—</span></span>
-              <div style="display:flex;align-items:center;gap:5px;margin-left:auto;">
-                <!-- Mode: teks saja, tanpa emoji -->
-                <div style="display:flex;gap:3px;background:var(--deep);border:.5px solid var(--border);border-radius:4px;padding:2px;">
-                  <button class="nav-mode-btn active" data-mode="driving"  onclick="setNavMode(this)" style="background:var(--cmd);color:var(--frost);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">DARAT</button>
-                  <button class="nav-mode-btn"         data-mode="walking"  onclick="setNavMode(this)" style="background:none;color:var(--ash);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">JALAN</button>
-                  <button class="nav-mode-btn"         data-mode="cycling"  onclick="setNavMode(this)" style="background:none;color:var(--ash);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">SEPEDA</button>
-                </div>
-                <button onclick="toggleNavFollow()" id="btn-nav-follow" title="Follow mode" style="background:none;border:.5px solid #22cc44;color:#22cc44;font-size:9px;padding:3px 7px;border-radius:3px;cursor:pointer;font-family:var(--font);letter-spacing:.04em;">
+            <!-- Current turn instruction (prominent) -->
+            <div id="nav-turn-card" style="display:none;">
+              <div id="nav-turn-icon"><i class="ti ti-arrow-up" style="color:#040c16;font-size:22px;"></i></div>
+              <div style="flex:1;min-width:0;">
+                <div id="nav-turn-inst" style="font-size:13px;font-weight:bold;color:var(--frost);">Mulai perjalanan</div>
+                <div id="nav-turn-road" style="font-size:10px;color:var(--ash);margin-top:2px;"></div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div id="nav-turn-dist" style="font-size:20px;font-weight:bold;color:#22cc44;font-family:var(--font);">—</div>
+                <div style="font-size:9px;color:var(--ash);">ke tikungan</div>
+              </div>
+            </div>
+
+            <!-- Route alternatives -->
+            <div id="nav-routes" style="display:none;"></div>
+
+            <!-- Stats + controls -->
+            <div class="nav-meta">
+              <div style="display:flex;gap:3px;background:var(--deep);border:.5px solid var(--border);border-radius:4px;padding:2px;">
+                <button class="nav-mode-btn active" data-mode="driving"  onclick="setNavMode(this)" style="background:var(--cmd);color:var(--frost);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">DARAT</button>
+                <button class="nav-mode-btn"        data-mode="walking"  onclick="setNavMode(this)" style="background:none;color:var(--ash);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">JALAN</button>
+                <button class="nav-mode-btn"        data-mode="cycling"  onclick="setNavMode(this)" style="background:none;color:var(--ash);border:none;font-family:var(--font);font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;letter-spacing:.04em;">SEPEDA</button>
+              </div>
+              <div class="nav-stat"><span class="nav-stat-val" id="nav-dist">—</span><span class="nav-stat-lbl">Jarak</span></div>
+              <div class="nav-stat"><span class="nav-stat-val" id="nav-eta">—</span><span class="nav-stat-lbl">ETA</span></div>
+              <div class="nav-stat"><span class="nav-stat-val" id="nav-toll-info" style="font-size:10px;color:#EF9F27;"></span><span class="nav-stat-lbl" id="nav-toll-lbl"></span></div>
+              <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                <button onclick="toggleNavFollow()" id="btn-nav-follow" style="background:none;border:.5px solid #22cc44;color:#22cc44;font-size:9px;padding:3px 7px;border-radius:3px;cursor:pointer;font-family:var(--font);">
                   <i class="ti ti-gps"></i> FOLLOW
                 </button>
                 <button onclick="clearNavigation()" style="background:none;border:.5px solid var(--border);color:var(--ash);font-size:10px;padding:3px 7px;border-radius:3px;cursor:pointer;">
-                  <i class="ti ti-x"></i>
+                  <i class="ti ti-x"></i> Tutup
                 </button>
               </div>
-            </div>
-            <div class="nav-meta">
-              <div class="nav-stat"><span class="nav-stat-val" id="nav-dist">—</span><span class="nav-stat-lbl">Via jalan</span></div>
-              <div class="nav-stat"><span class="nav-stat-val" id="nav-eta">—</span><span class="nav-stat-lbl">Est. waktu</span></div>
-              <div class="nav-stat"><span class="nav-stat-val" id="nav-straight">—</span><span class="nav-stat-lbl">Garis lurus</span></div>
             </div>
             <div class="nav-steps" id="nav-steps"></div>
           </div>
@@ -266,8 +309,8 @@
               <a href="/operators" onclick="localStorage.setItem('ops-tab','units')" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">
                 <i class="ti ti-map-pin"></i> Kelola Field Units
               </a>
-              <button id="btn-new-zone" onclick="openZoneModal()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:6px;display:none;">
-                <i class="ti ti-vector"></i> Tambah Zona
+              <button id="btn-new-zone" onclick="openZoneManager()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:6px;display:none;">
+                <i class="ti ti-vector"></i> Kelola Zona
               </button>
               <a href="/operators" onclick="localStorage.setItem('ops-tab','operators')" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:6px;">
                 <i class="ti ti-users"></i> Kelola Operators
@@ -346,6 +389,9 @@
   async function initMap() {
     currentUser = await initTopbar('GRID TAKTIS');
 
+    // Fetch client config (TomTom key, dll)
+    try { const cfg = await api('/api/config'); _tomtomKey = cfg.tomtomKey || ''; } catch(_) {}
+
     // Tile layers (global untuk diakses dari onclick)
     _tileLayers = {
       taktis: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -417,7 +463,7 @@
     });
 
     socket.on('operator-offline', ({ id }) => {
-      removeMarker(id);
+      _setOperatorOffline(id);
       updateSidebar();
     });
 
@@ -435,9 +481,26 @@
     // Zone socket
     _attachZoneSockets(socket);
 
-    // Tampilkan tombol tambah zona jika punya akses
+    // Tampilkan tombol kelola zona jika punya akses
     const canManageZone = ['CHIEF','SA','ADMIN','CMD'].includes(currentUser?.role) || currentUser?.clearance >= 3;
     if (canManageZone) document.getElementById('btn-new-zone').style.display = '';
+
+    // Restore navigasi dari localStorage (jika sebelumnya aktif)
+    const _savedNav = localStorage.getItem('arcanum-nav');
+    if (_savedNav) {
+      try {
+        const { targetId, targetName, mode } = JSON.parse(_savedNav);
+        if (targetId && targetName) {
+          _navMode = mode || 'driving';
+          document.querySelectorAll('.nav-mode-btn').forEach(b => {
+            b.style.background = b.dataset.mode === _navMode ? 'var(--cmd)' : 'none';
+            b.style.color      = b.dataset.mode === _navMode ? 'var(--frost)' : 'var(--ash)';
+          });
+          // Tunda sedikit agar operatorData sudah terisi
+          setTimeout(() => navigateTo(targetId, targetName), 2000);
+        }
+      } catch(_) { localStorage.removeItem('arcanum-nav'); }
+    }
   }
 
   // ══════════════════════════════════════════════
@@ -452,35 +515,60 @@
     flashSync();
   }
 
-  function upsertOperatorMarker(op) {
-    if (!op.lat || !op.lng) return;
-    operatorData[op.id] = op;
-
-    const color  = getColor(op.role);
-    const bg     = getBg(op.role);
-    const txt    = ROLE_TEXT[op.role] || '#C0DD97';
+  function _buildOpIcon(op, offline = false) {
+    const color   = offline ? '#444' : getColor(op.role);
+    const bg      = offline ? '#111' : getBg(op.role);
+    const txt     = offline ? '#555' : (ROLE_TEXT[op.role] || '#C0DD97');
     const initials = (op.name || op.id).slice(0, 3).toUpperCase();
-    const isMe   = currentUser && op.id === currentUser.id;
-    const size   = isMe ? 36 : 30;
-    const pulse  = ['SA','CMD','ADMIN'].includes(op.role) || isMe;
-
-    const iconHtml = `
-      <div class="unit-marker-icon">
+    const isMe    = currentUser && op.id === currentUser.id;
+    const size    = isMe ? 36 : 30;
+    const pulse   = !offline && (['SA','CMD','ADMIN'].includes(op.role) || isMe);
+    return `
+      <div class="unit-marker-icon" style="opacity:${offline ? 0.45 : 1};">
         <div style="position:relative;">
           ${pulse ? `<div class="unit-pulse" style="background:${color};"></div>` : ''}
           <div class="unit-pin-div" style="width:${size}px;height:${size}px;font-size:${size>30?10:9}px;background:${bg};border-color:${color};color:${txt};">
             ${initials}
           </div>
-          ${isMe ? '<div style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#22cc44;border:1.5px solid #040c16;"></div>' : ''}
+          ${isMe && !offline ? '<div style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#22cc44;border:1.5px solid #040c16;"></div>' : ''}
+          ${offline ? '<div style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#555;border:1.5px solid #040c16;"></div>' : ''}
         </div>
-        <div class="unit-lbl-div" style="color:${color};background:rgba(4,12,22,.85);">${op.name || op.id}</div>
+        <div class="unit-lbl-div" style="color:${color};background:rgba(4,12,22,.85);">
+          ${op.name || op.id}${offline ? ' <span style="font-size:7px;opacity:.6;">offline</span>' : ''}
+        </div>
       </div>`;
+  }
+
+  function _setOperatorOffline(id) {
+    // Jangan hapus marker — ubah tampilan jadi offline (redup, tanpa dot hijau)
+    if (!operatorData[id]) return;
+    operatorData[id]._offline = true;
+    if (markers[id]) {
+      const op = operatorData[id];
+      const size = (currentUser && id === currentUser.id) ? 36 : 30;
+      markers[id].setIcon(L.divIcon({
+        html: _buildOpIcon(op, true),
+        className: '', iconSize: [size+40, size+30], iconAnchor: [(size+40)/2, size/2]
+      }));
+    }
+    // Hapus dari sidebar tapi tetap tampilkan di peta
+    updateSidebar();
+  }
+
+  function upsertOperatorMarker(op) {
+    if (!op.lat || !op.lng) return;
+    op._offline = false;  // kembali online → clear offline state
+    operatorData[op.id] = op;
+
+    const size = (currentUser && op.id === currentUser.id) ? 36 : 30;
+    const iconHtml = _buildOpIcon(op, false);
 
     const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [size+40, size+30], iconAnchor: [(size+40)/2, size/2] });
 
+    const _popColor = getColor(op.role);
     const popupHtml = `
       <div class="map-popup">
-        <div class="pop-name" style="color:${color};">${op.name}</div>
+        <div class="pop-name" style="color:${_popColor};">${op.name}</div>
         <div class="pop-row"><span class="pop-key">Role</span><span class="pop-val">${op.role}</span></div>
         <div class="pop-row"><span class="pop-key">Clearance</span><span class="pop-val">LVL ${op.clearance}</span></div>
         ${op.village  ? `<div class="pop-row"><span class="pop-key">Kelurahan</span><span class="pop-val">${op.village}</span></div>` : ''}
@@ -758,7 +846,8 @@
   //  SIDEBAR UPDATE
   // ══════════════════════════════════════════════
   function updateSidebar() {
-    const ops   = Object.values(operatorData);
+    // Sidebar hanya tampilkan operator yang ONLINE
+    const ops   = Object.values(operatorData).filter(o => !o._offline);
     const units = Object.values(unitData);
 
     const elCount  = document.getElementById('online-count');
@@ -892,12 +981,21 @@
   let _navMode       = 'driving';
   let _navFollow     = false;
 
+  function _saveNavState() {
+    if (_navTargetId) {
+      localStorage.setItem('arcanum-nav', JSON.stringify({ targetId: _navTargetId, targetName: _navTargetName, mode: _navMode }));
+    } else {
+      localStorage.removeItem('arcanum-nav');
+    }
+  }
+
   function setNavMode(btn) {
     _navMode = btn.dataset.mode;
     document.querySelectorAll('.nav-mode-btn').forEach(b => {
       b.style.background = b === btn ? 'var(--cmd)' : 'none';
       b.style.color      = b === btn ? 'var(--frost)' : 'var(--ash)';
     });
+    _saveNavState();
     recalcRoute();
   }
 
@@ -950,12 +1048,17 @@
     _navTargetId   = targetId;
     _navTargetName = targetName;
     _navFollow     = false;
-    document.getElementById('nav-target-name').textContent = targetName;
+    document.getElementById('nav-turn-inst').textContent = 'Menuju ' + targetName + '…';
+    document.getElementById('nav-turn-road').textContent = '';
+    document.getElementById('nav-turn-dist').textContent = '—';
+    document.getElementById('nav-turn-card').style.display = 'flex';
+    document.getElementById('nav-routes').style.display = 'none';
     document.getElementById('nav-panel').style.display = 'flex';
     document.getElementById('btn-nav-follow').style.background = 'none';
     document.getElementById('btn-nav-follow').style.color = '#22cc44';
     document.getElementById('btn-nav-follow').innerHTML = '<i class="ti ti-gps"></i> FOLLOW';
     map.closePopup();
+    _saveNavState();
     recalcRoute();
     // Auto-zoom langsung ke rute
     setTimeout(() => _doFollow(), 800);
@@ -972,10 +1075,7 @@
       return;
     }
 
-    // Jarak garis lurus
     const straight = _haversineMeter(me.lat, me.lng, target.lat, target.lng);
-    document.getElementById('nav-straight').textContent = _fmtDist(straight);
-
     const osrmProfile = _navMode === 'cycling' ? 'bike' : _navMode === 'walking' ? 'foot' : 'car';
 
     try {
@@ -991,6 +1091,21 @@
 
       document.getElementById('nav-dist').textContent = _fmtDist(distM);
       document.getElementById('nav-eta').textContent  = _fmtDuration(durS);
+
+      // Route alternatives card (OSRM single route — tampilkan sebagai satu card aktif)
+      const routesEl = document.getElementById('nav-routes');
+      routesEl.innerHTML = `
+        <div class="nav-route-opt active">
+          <div class="nav-ro-time">${_fmtDuration(durS)}</div>
+          <div class="nav-ro-dist">${_fmtDist(distM)}</div>
+          <span class="nav-ro-tag nav-ro-fastest">TERPENDEK</span>
+        </div>
+        <div class="nav-route-opt" style="opacity:.5;pointer-events:none;">
+          <div class="nav-ro-time">—</div>
+          <div class="nav-ro-dist">~${_fmtDist(distM * 1.15)}</div>
+          <span class="nav-ro-tag nav-ro-alt">ALT</span>
+        </div>`;
+      routesEl.style.display = 'flex';
 
       // Gambar rute di peta
       if (_navRouteLine) map.removeLayer(_navRouteLine);
@@ -1009,16 +1124,24 @@
 
       // Turn-by-turn steps
       const steps = route.legs[0]?.steps || [];
-      const stepsHtml = steps
-        .filter(s => s.maneuver?.type !== 'arrive' || steps.indexOf(s) === steps.length - 1)
-        .map((s, i) => {
-          const icon = _maneuverIcon(s.maneuver?.modifier, s.maneuver?.type);
-          const dist = s.distance < 1000
-            ? Math.round(s.distance) + ' m'
-            : (s.distance / 1000).toFixed(1) + ' km';
+      const filteredSteps = steps.filter(s => s.maneuver?.type !== 'arrive' || steps.indexOf(s) === steps.length - 1);
+
+      // Update turn card dengan instruksi pertama
+      if (filteredSteps.length > 0) {
+        const first = filteredSteps[0];
+        const firstDist = first.distance < 1000 ? Math.round(first.distance) + ' m' : (first.distance/1000).toFixed(1) + ' km';
+        document.getElementById('nav-turn-inst').textContent = _cleanInstruction(first.name, first.maneuver);
+        document.getElementById('nav-turn-road').textContent = first.name || '';
+        document.getElementById('nav-turn-dist').textContent = firstDist;
+        document.getElementById('nav-turn-icon').innerHTML   = _maneuverIconEl(first.maneuver?.modifier, first.maneuver?.type);
+        document.getElementById('nav-turn-card').style.display = 'flex';
+      }
+
+      const stepsHtml = filteredSteps.map((s, i) => {
+          const dist = s.distance < 1000 ? Math.round(s.distance) + ' m' : (s.distance/1000).toFixed(1) + ' km';
           return `
-            <div class="nav-step">
-              <div class="nav-step-num">${icon}</div>
+            <div class="nav-step${i === 0 ? ' current' : ''}">
+              <div class="nav-step-icon">${_maneuverIconEl(s.maneuver?.modifier, s.maneuver?.type)}</div>
               <span class="nav-step-txt">${_cleanInstruction(s.name, s.maneuver)}</span>
               <span class="nav-step-dist">${dist}</span>
             </div>`;
@@ -1036,17 +1159,25 @@
       map.fitBounds(_navRouteLine.getBounds(), { padding:[60,60] });
       document.getElementById('nav-dist').textContent = _fmtDist(straight);
       document.getElementById('nav-eta').textContent  = '—';
+      document.getElementById('nav-turn-inst').textContent = 'Garis lurus ke ' + (_navTargetName || 'tujuan');
+      document.getElementById('nav-turn-dist').textContent = _fmtDist(straight);
+      document.getElementById('nav-routes').style.display = 'none';
       document.getElementById('nav-steps').innerHTML  =
-        '<div style="font-size:10px;color:var(--siaga);padding:8px 0;">⚠ Routing tidak tersedia — menampilkan garis lurus.</div>';
+        '<div style="font-size:10px;color:var(--siaga);padding:8px 0;"><i class="ti ti-alert-triangle"></i> Routing tidak tersedia — menampilkan garis lurus.</div>';
     }
   }
 
   function clearNavigation() {
     _navTargetId = _navTargetName = null;
+    _saveNavState();
     clearInterval(_navInterval);
     if (_navRouteLine) { map.removeLayer(_navRouteLine); _navRouteLine = null; }
     document.getElementById('nav-panel').style.display = 'none';
+    document.getElementById('nav-turn-card').style.display = 'none';
+    document.getElementById('nav-routes').style.display = 'none';
     document.getElementById('nav-steps').innerHTML = '';
+    document.getElementById('nav-dist').textContent = '—';
+    document.getElementById('nav-eta').textContent  = '—';
   }
 
   function _haversineMeter(lat1, lng1, lat2, lng2) {
@@ -1067,15 +1198,52 @@
     return h + ' jam' + (m ? ' ' + m + ' mnt' : '');
   }
 
-  function _maneuverIcon(modifier, type) {
-    if (type === 'arrive')       return '🏁';
-    if (type === 'depart')       return '📍';
-    if (!modifier)               return '→';
-    if (modifier.includes('left'))      return '←';
-    if (modifier.includes('right'))     return '→';
-    if (modifier.includes('straight'))  return '↑';
-    if (modifier.includes('uturn'))     return '↩';
-    return '→';
+  function _maneuverIconEl(modifier, type) {
+    if (type === 'arrive')                     return '<i class="ti ti-flag-2" style="color:#22cc44;font-size:14px;"></i>';
+    if (type === 'depart')                     return '<i class="ti ti-navigation" style="color:#22cc44;font-size:14px;"></i>';
+    if (type === 'roundabout')                 return '<i class="ti ti-rotate-clockwise" style="color:#85B7EB;font-size:14px;"></i>';
+    if (modifier && modifier.includes('uturn'))return '<i class="ti ti-arrow-back-up" style="color:#EF9F27;font-size:14px;"></i>';
+    if (modifier && modifier.includes('sharp left'))  return '<i class="ti ti-arrow-sharp-turn-left" style="color:var(--mist);font-size:14px;"></i>';
+    if (modifier && modifier.includes('sharp right')) return '<i class="ti ti-arrow-sharp-turn-right" style="color:var(--mist);font-size:14px;"></i>';
+    if (modifier && modifier.includes('left'))        return '<i class="ti ti-arrow-bear-left" style="color:var(--mist);font-size:14px;"></i>';
+    if (modifier && modifier.includes('right'))       return '<i class="ti ti-arrow-bear-right" style="color:var(--mist);font-size:14px;"></i>';
+    return '<i class="ti ti-arrow-up" style="color:var(--mist);font-size:14px;"></i>';
+  }
+
+  // ── Traffic Layer (TomTom real-time) ─────────────
+  let _trafficLayer    = null;
+  let _trafficIncLayer = null;
+  let _tomtomKey       = '';
+
+  function toggleTrafficLayer() {
+    const btn = document.getElementById('traffic-toggle');
+    if (_trafficLayer) {
+      map.removeLayer(_trafficLayer);
+      if (_trafficIncLayer) map.removeLayer(_trafficIncLayer);
+      _trafficLayer = _trafficIncLayer = null;
+      btn.classList.remove('on');
+      return;
+    }
+    if (!_tomtomKey) {
+      arcAlert(
+        'Traffic layer real-time membutuhkan <b>TomTom API key</b>.<br>' +
+        'Daftar GRATIS di <a href="https://developer.tomtom.com" target="_blank" style="color:#22cc44;">developer.tomtom.com</a>, ' +
+        'lalu set <b>TOMTOM_KEY=...</b> di file <b>.env</b> server dan restart.',
+        { title: 'Traffic Belum Dikonfigurasi', icon: '🚦' }
+      );
+      return;
+    }
+    // Flow tiles — warna jalan: hijau=lancar, kuning=padat, merah=macet
+    _trafficLayer = L.tileLayer(
+      `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${_tomtomKey}&tileSize=256`,
+      { opacity: 0.75, attribution: '&copy; TomTom Traffic', maxZoom: 19, zIndex: 450 }
+    ).addTo(map);
+    // Incidents tiles — ikon kecelakaan/penutupan jalan
+    _trafficIncLayer = L.tileLayer(
+      `https://api.tomtom.com/traffic/map/4/tile/incidents/s1/{z}/{x}/{y}.png?key=${_tomtomKey}&tileSize=256`,
+      { opacity: 0.9, attribution: '', maxZoom: 19, zIndex: 451 }
+    ).addTo(map);
+    btn.classList.add('on');
   }
 
   function _cleanInstruction(name, maneuver) {
@@ -1400,6 +1568,35 @@
   </div>
 
   <script>
+  // ── Zone Manager (list semua zona) ───────────
+  async function openZoneManager() {
+    const zones = Object.values(_zoneData);
+    const ZONE_COLOR = { restricted:'#E24B4A', command:'#378ADD', ops:'#639922', alert:'#EF9F27', neutral:'#666' };
+    const listHtml = zones.length
+      ? zones.map(z => {
+          const c = ZONE_COLOR[z.type] || '#666';
+          return `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border);">
+              <div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0;"></div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;color:var(--frost);font-weight:bold;">${z.name}</div>
+                <div style="font-size:9px;color:var(--ash);text-transform:uppercase;">${z.type} · ${z.shape} · LVL ${z.clearance}+</div>
+              </div>
+              <button onclick="document.getElementById('arcanum-dialog-overlay').classList.remove('show');setTimeout(()=>openZoneModal('${z.zoneId}'),100)"
+                style="background:none;border:.5px solid var(--border);color:var(--mist);font-family:var(--font);font-size:9px;padding:3px 8px;border-radius:3px;cursor:pointer;flex-shrink:0;">
+                Edit
+              </button>
+            </div>`;
+        }).join('')
+      : '<div style="padding:16px 0;text-align:center;color:var(--ash);font-size:11px;">Belum ada zona. Tambah zona baru di bawah.</div>';
+
+    const wantAdd = await arcConfirm(
+      `<div style="max-height:240px;overflow-y:auto;">${listHtml}</div>`,
+      { title: 'KELOLA ZONA', icon: '📐', okText: '+ Tambah Zona Baru', cancelText: 'Tutup' }
+    );
+    if (wantAdd) openZoneModal();
+  }
+
   // ── Zone modal logic ──────────────────────────
   let _editingZoneId = null;
   let _pickingZoneCorner = 0;

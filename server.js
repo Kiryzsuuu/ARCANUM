@@ -40,6 +40,11 @@ const pageRoutes = require('./routes/pages');
 app.use('/', authRoutes);
 app.use('/', requireAuth, pageRoutes);
 
+// Public client config (safe keys only)
+app.get('/api/config', requireAuth, (req, res) => {
+  res.json({ tomtomKey: process.env.TOMTOM_KEY || '' });
+});
+
 // ── Socket.io ────────────────────────────────────────────────
 const onlineUsers = {};   // socketId -> { user, channel }
 const userSockets = {};   // operatorId -> socketId  (for DM delivery)
