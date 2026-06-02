@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ARCANUM — Walkie Talkie</title>
+  <link rel="stylesheet" href="/css/arcanum.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    /* ── Layout ─────────────────────────────── */
+    .wt-wrap { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--bg-app); }
+
+    /* ── Channel bar ───────────────────────── */
+    .wt-channel-bar {
+      background:var(--bg-panel); border-bottom:.5px solid var(--border);
+      padding:10px 16px; display:flex; align-items:center; gap:12px; flex-shrink:0;
+    }
+    .wt-channel-bar i.ti-radio { font-size:18px; color:var(--cmd); flex-shrink:0; }
+
+    .ch-sel-wrap { position:relative; flex:1; }
+    .ch-sel {
+      width:100%; background:var(--bg-input); border:.5px solid var(--border);
+      border-radius:6px; color:var(--frost); font-family:var(--font); font-size:12px;
+      padding:8px 34px 8px 12px; cursor:pointer; -webkit-appearance:none; appearance:none;
+      font-weight:bold; letter-spacing:.04em; transition:border-color .15s;
+    }
+    .ch-sel:focus { outline:none; border-color:var(--cmd); }
+    .ch-sel-wrap::after {
+      content:''; border:4px solid transparent; border-top:5px solid var(--ash);
+      position:absolute; right:12px; top:50%; transform:translateY(-20%); pointer-events:none;
+    }
+
+    .wt-members { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ash); white-space:nowrap; flex-shrink:0; }
+    .mem-dot { width:7px; height:7px; border-radius:50%; background:#444; transition:background .3s; flex-shrink:0; }
+    .mem-dot.online { background:#22cc44; }
+
+    /* ── Mic denied ─────────────────────────── */
+    .mic-denied-bar {
+      background:#1a0e04; border-bottom:.5px solid #854F0B;
+      padding:8px 16px; display:none; align-items:center; gap:10px;
+      flex-shrink:0; font-size:11px; color:var(--siaga);
+    }
+    .mic-denied-bar.show { display:flex; }
+
+    /* ── Feed ───────────────────────────────── */
+    .wt-feed {
+      flex:1; overflow-y:auto; padding:10px 12px;
+      display:flex; flex-direction:column; gap:6px; min-height:0;
+    }
+    .feed-empty {
+      flex:1; display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:10px; color:var(--ash); padding:40px 0;
+    }
+    .feed-empty i { font-size:48px; opacity:.15; }
+    .feed-empty-txt { font-size:11px; text-align:center; line-height:1.6; opacity:.45; }
+
+    .feed-item {
+      background:var(--bg-panel); border:.5px solid var(--border); border-radius:8px;
+      padding:10px 12px; display:flex; align-items:center; gap:10px;
+      cursor:pointer; transition:border-color .15s; flex-shrink:0;
+    }
+    .feed-item:hover { border-color:var(--cmd); }
+    .feed-item.self  { border-left:2px solid var(--cmd); }
+    .feed-item.playing { border-color:#22cc44; background:rgba(34,204,68,.06); }
+
+    .fi-avatar {
+      width:36px; height:36px; border-radius:50%; display:flex; align-items:center;
+      justify-content:center; font-size:12px; font-weight:bold; flex-shrink:0;
+      border:1.5px solid;
+    }
+    .fi-meta { flex:1; min-width:0; }
+    .fi-name { font-size:11px; font-weight:bold; color:var(--frost); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .fi-sub  { font-size:9px; color:var(--ash); margin-top:2px; }
+    .fi-bars { display:flex; align-items:center; gap:2px; height:22px; flex-shrink:0; }
+    .fi-bar  { background:var(--cmd); border-radius:2px; width:3px; opacity:.7; }
+    .feed-item.playing .fi-bar { background:#22cc44; opacity:1; }
+    .fi-dur  { font-size:9px; color:var(--ash); white-space:nowrap; flex-shrink:0; padding:0 4px; }
+    .fi-play { font-size:15px; color:var(--cmd); flex-shrink:0; }
+    .feed-item.playing .fi-play { color:#22cc44; animation:wt-pulse 1s ease-in-out infinite; }
+
+    @keyframes wt-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Incoming banner ────────────────────── */
+    .wt-incoming {
+      margin:6px 12px; background:rgba(34,204,68,.06); border:1px solid #22cc44;
+      border-radius:8px; padding:10px 14px; display:none; align-items:center;
+      gap:12px; flex-shrink:0; animation:wt-fadein .2s ease;
+    }
+    .wt-incoming.show { display:flex; }
+    @keyframes wt-fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+    .inc-pulse {
+      width:10px; height:10px; border-radius:50%; background:#22cc44; flex-shrink:0;
+      box-shadow:0 0 0 0 rgba(34,204,68,.4);
+      animation:inc-ring 1.4s ease-out infinite;
+    }
+    @keyframes inc-ring {
+      0%  { box-shadow:0 0 0 0 rgba(34,204,68,.5); }
+      70% { box-shadow:0 0 0 12px rgba(34,204,68,0); }
+      100%{ box-shadow:0 0 0 0 rgba(34,204,68,0); }
+    }
+    .inc-info { flex:1; min-width:0; }
+    .inc-label{ font-size:8px; color:var(--ops); letter-spacing:.08em; text-transform:uppercase; }
+    .inc-name { font-size:13px; font-weight:bold; color:#22cc44; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .inc-wave { display:flex; align-items:center; gap:2px; height:26px; flex-shrink:0; }
+    .inc-bar  { background:#22cc44; border-radius:2px; width:3px; }
+    .inc-bar:nth-child(1){ animation:ibar .5s .00s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(2){ animation:ibar .5s .07s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(3){ animation:ibar .5s .14s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(4){ animation:ibar .5s .21s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(5){ animation:ibar .5s .28s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(6){ animation:ibar .5s .35s ease-in-out infinite alternate; }
+    .inc-bar:nth-child(7){ animation:ibar .5s .42s ease-in-out infinite alternate; }
+    @keyframes ibar {
+      from { height:4px;  opacity:.4; }
+      to   { height:22px; opacity:1; }
+    }
+
+    /* ── PTT area ───────────────────────────── */
+    .wt-ptt-area {
+      border-top:.5px solid var(--border); background:var(--bg-panel);
+      padding:14px 16px 18px; display:flex; flex-direction:column;
+      align-items:center; gap:10px; flex-shrink:0;
+    }
+
+    /* Visualizer */
+    .ptt-viz-wrap { width:100%; max-width:300px; height:32px; display:none; }
+    .ptt-viz-wrap canvas { width:100%; height:100%; display:block; }
+
+    /* Timer */
+    .rec-timer {
+      font-size:20px; font-weight:bold; color:#E24B4A;
+      font-family:var(--font); display:none; letter-spacing:.04em;
+    }
+
+    /* PTT Button */
+    .ptt-btn {
+      width:130px; height:130px; border-radius:50%;
+      background:var(--deep); border:3px solid var(--steel);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+      cursor:pointer; user-select:none; touch-action:none;
+      -webkit-tap-highlight-color:transparent;
+      transition:background .12s, border-color .12s, box-shadow .12s;
+      position:relative;
+    }
+    .ptt-btn i { font-size:32px; color:var(--cmd); transition:color .12s; pointer-events:none; }
+    .ptt-lbl   { font-size:8px; color:var(--ash); letter-spacing:.09em; pointer-events:none; text-align:center; line-height:1.3; }
+
+    .ptt-btn:not(.disabled):not(.recording):not(.receiving):hover {
+      border-color:var(--cmd); background:var(--steel);
+    }
+    .ptt-btn:not(.disabled):not(.recording):not(.receiving):hover i { color:var(--signal); }
+
+    .ptt-btn.recording {
+      border-color:#E24B4A; background:rgba(226,75,74,.1);
+      box-shadow:0 0 0 0 rgba(226,75,74,.4);
+      animation:ptt-ring 1.1s ease-out infinite;
+    }
+    .ptt-btn.recording i  { color:#E24B4A; }
+    .ptt-btn.recording .ptt-lbl { color:#E24B4A; }
+    @keyframes ptt-ring {
+      0%  { box-shadow:0 0 0 0 rgba(226,75,74,.5); }
+      70% { box-shadow:0 0 0 22px rgba(226,75,74,0); }
+      100%{ box-shadow:0 0 0 0 rgba(226,75,74,0); }
+    }
+
+    .ptt-btn.receiving { border-color:#22cc44; background:rgba(34,204,68,.07); cursor:not-allowed; }
+    .ptt-btn.receiving i  { color:#22cc44; }
+    .ptt-btn.receiving .ptt-lbl { color:var(--ops); }
+
+    .ptt-btn.disabled { opacity:.35; cursor:not-allowed; }
+
+    /* Status row */
+    .wt-status {
+      display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+      justify-content:center; font-size:9px; color:var(--ash); letter-spacing:.05em;
+    }
+    .wt-st-item { display:flex; align-items:center; gap:4px; }
+    .wt-st-dot  { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Max-duration warning ───────────────── */
+    .max-warn {
+      font-size:9px; color:#EF9F27; letter-spacing:.04em;
+      display:none; animation:wt-pulse .5s ease-in-out infinite;
+    }
+
+    /* ── Mobile ─────────────────────────────── */
+    @media (max-width:640px) {
+      .wt-channel-bar { padding:8px 12px; gap:8px; }
+      .wt-feed { padding:8px; gap:5px; }
+      .wt-incoming { margin:4px 8px; }
+      .wt-ptt-area { padding:10px 12px 16px; gap:8px; }
+      .ptt-btn { width:150px; height:150px; }
+      .ptt-btn i { font-size:38px; }
+      .ptt-lbl { font-size:7px; }
+      .rec-timer { font-size:22px; }
+      .wt-status { gap:10px; font-size:8px; }
+      .feed-item { padding:8px 10px; gap:8px; }
+      .fi-avatar { width:32px; height:32px; font-size:11px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="flex items-center gap-8">
+        <div class="tb-brand">
+          <div class="tb-icon"><i class="ti ti-lock"></i></div>
+          <span class="tb-name">ARCANUM</span>
+        </div>
+        <div class="tb-sep"></div>
+        <span class="tb-path">WALKIE // NET COMMS REAL-TIME</span>
+      </div>
+      <div class="tb-right">
+        <div class="tb-item"><span class="live-dot"></span> LIVE</div>
+        <div class="tb-item"><i class="ti ti-clock"></i> <span id="utc-clock"></span></div>
+        <div class="avatar" id="user-initials">--</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <a href="/dashboard" class="nav-btn" title="Dashboard"><i class="ti ti-layout-dashboard"></i></a>
+        <a href="/channels"  class="nav-btn" title="Channels"><i class="ti ti-messages"></i></a>
+        <a href="/dm"        class="nav-btn" title="Direct Message"><i class="ti ti-message-2"></i></a>
+        <a href="/grid"      class="nav-btn" title="Grid"><i class="ti ti-map-pin"></i></a>
+        <a href="/sitrep"    class="nav-btn" title="Sitrep"><i class="ti ti-file-report"></i></a>
+        <a href="/walkie"    class="nav-btn active" title="Walkie Talkie"><i class="ti ti-radio"></i></a>
+        <a href="/operators" class="nav-btn" title="Operators"><i class="ti ti-users"></i></a>
+        <div class="nav-sep"></div>
+        <a href="/logout" class="nav-btn" title="Logout"><i class="ti ti-logout"></i></a>
+      </nav>
+
+      <!-- Main -->
+      <div class="wt-wrap">
+
+        <!-- Channel selector bar -->
+        <div class="wt-channel-bar">
+          <i class="ti ti-radio"></i>
+          <div class="ch-sel-wrap">
+            <select id="ch-sel" class="ch-sel" onchange="switchChannel(this.value)">
+              <option value="">Memuat channel…</option>
+            </select>
+          </div>
+          <div class="wt-members">
+            <div class="mem-dot" id="mem-dot"></div>
+            <span id="mem-count">0 online</span>
+          </div>
+        </div>
+
+        <!-- Mic denied -->
+        <div class="mic-denied-bar" id="mic-denied">
+          <i class="ti ti-microphone-off" style="font-size:18px;flex-shrink:0;"></i>
+          <div>
+            <div style="font-weight:bold;font-size:11px;">Mikrofon tidak dapat diakses</div>
+            <div style="font-size:10px;color:var(--ash);margin-top:2px;">Izinkan akses mikrofon di pengaturan browser untuk menggunakan walkie-talkie.</div>
+          </div>
+        </div>
+
+        <!-- Feed -->
+        <div class="wt-feed" id="wt-feed">
+          <div class="feed-empty" id="feed-empty">
+            <i class="ti ti-radio"></i>
+            <div class="feed-empty-txt">Belum ada transmisi di channel ini.<br>Tahan tombol di bawah untuk mulai bicara.</div>
+          </div>
+        </div>
+
+        <!-- Incoming indicator -->
+        <div class="wt-incoming" id="wt-incoming">
+          <div class="inc-pulse"></div>
+          <div class="inc-info">
+            <div class="inc-label"><i class="ti ti-broadcast" style="font-size:9px;"></i> Menerima transmisi</div>
+            <div class="inc-name" id="inc-name">—</div>
+          </div>
+          <div class="inc-wave">
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+            <div class="inc-bar"></div>
+          </div>
+        </div>
+
+        <!-- PTT area -->
+        <div class="wt-ptt-area">
+
+          <!-- Waveform visualizer (shown during recording) -->
+          <div class="ptt-viz-wrap" id="ptt-viz">
+            <canvas id="viz-canvas"></canvas>
+          </div>
+
+          <!-- Recording timer -->
+          <div class="rec-timer" id="rec-timer">0:00</div>
+
+          <!-- Max duration warning -->
+          <div class="max-warn" id="max-warn">⚠ Maks. 60 detik — segera lepas</div>
+
+          <!-- PTT Button -->
+          <div class="ptt-btn disabled" id="ptt-btn"
+            onmousedown="startPTT(event)"
+            onmouseup="stopPTT(event)"
+            onmouseleave="stopPTT(event)"
+            ontouchstart="startPTT(event)"
+            ontouchend="stopPTT(event)"
+            ontouchcancel="stopPTT(event)">
+            <i class="ti ti-microphone" id="ptt-icon"></i>
+            <span class="ptt-lbl" id="ptt-lbl">MEMUAT…</span>
+          </div>
+
+          <!-- Status row -->
+          <div class="wt-status">
+            <div class="wt-st-item">
+              <div class="wt-st-dot" id="mic-dot" style="background:#444;"></div>
+              <span id="mic-stat">Meminta izin mic…</span>
+            </div>
+            <div class="wt-st-item">
+              <i class="ti ti-antenna" style="font-size:9px;"></i>
+              <span id="stat-ch">Channel: —</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile nav -->
+    <nav class="mobile-nav">
+      <a href="/dashboard"><i class="ti ti-layout-dashboard"></i><span>DASH</span></a>
+      <a href="/channels"><i class="ti ti-messages"></i><span>COMMS</span></a>
+      <a href="/walkie" class="active"><i class="ti ti-radio"></i><span>WALKIE</span></a>
+      <a href="/grid"><i class="ti ti-map-pin"></i><span>GRID</span></a>
+      <a href="/sitrep"><i class="ti ti-file-report"></i><span>SITREP</span></a>
+    </nav>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/arcanum.js"></script>
+  <script>
+  // ── Role colors ───────────────────────────────────
+  const RC = { SA:'#378ADD', ADMIN:'#378ADD', CMD:'#378ADD', OPS:'#639922', RECON:'#EF9F27', INTEL:'#85B7EB', LOG:'#666' };
+  const RB = { SA:'#0a1628', ADMIN:'#0a1628', CMD:'#0C1F38', OPS:'#173404', RECON:'#1a0e04', INTEL:'#0a1020', LOG:'#1a1a1a' };
+
+  // ── State ────────────────────────────────────────
+  let currentUser    = null;
+  let wSocket        = null;
+  let currentCh      = null;
+  let mediaRecorder  = null;
+  let audioChunks    = [];
+  let audioStream    = null;
+  let analyser       = null;
+  let audioCtx       = null;
+  let vizRaf         = null;
+  let recTimerInt    = null;
+  let recStart       = 0;
+  let isRecording    = false;
+  let isReceiving    = false;
+  let maxDurTimer    = null;
+  let feedItems      = [];
+  let currentAudio   = null;
+  const MAX_REC_S    = 60;
+
+  // ── Bootstrap ────────────────────────────────────
+  async function init() {
+    currentUser = await initTopbar('WALKIE TALKIE');
+
+    wSocket = io();
+    wSocket.on('connect', () => {
+      wSocket.emit('register', currentUser.id);
+      if (currentCh) wSocket.emit('walkie-join', { channel: currentCh });
+    });
+
+    wSocket.on('walkie-keying',  ({ from, role }) => onIncoming(from, role));
+    wSocket.on('walkie-unkey',   ()                => offIncoming());
+    wSocket.on('walkie-receive', (data)            => onReceive(data));
+    wSocket.on('walkie-members', ({ count })       => setMembers(count));
+
+    await loadChannels();
+    await initMic();
+  }
+
+  // ── Channels ─────────────────────────────────────
+  async function loadChannels() {
+    const sel = document.getElementById('ch-sel');
+    try {
+      const chs = await api('/api/channels');
+      if (!chs.length) throw new Error('empty');
+      sel.innerHTML = chs.map(c =>
+        `<option value="${c.id}">${c.name.toUpperCase()}</option>`
+      ).join('');
+      switchChannel(chs[0].id);
+    } catch(_) {
+      sel.innerHTML = '<option value="NET-OPEN">NET-OPEN (Default)</option>';
+      switchChannel('NET-OPEN');
+    }
+  }
+
+  function switchChannel(chId) {
+    if (!chId || chId === currentCh) return;
+    currentCh = chId;
+    document.getElementById('ch-sel').value = chId;
+    document.getElementById('stat-ch').textContent = 'Channel: ' + chId;
+    feedItems = [];
+    _renderFeed();
+    offIncoming();
+    if (wSocket?.connected) wSocket.emit('walkie-join', { channel: chId });
+  }
+
+  function setMembers(count) {
+    document.getElementById('mem-count').textContent = count + ' online';
+    document.getElementById('mem-dot').className = 'mem-dot' + (count > 1 ? ' online' : '');
+  }
+
+  // ── Mic init ──────────────────────────────────────
+  async function initMic() {
+    try {
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioCtx    = new (window.AudioContext || window.webkitAudioContext)();
+      const src   = audioCtx.createMediaStreamSource(audioStream);
+      analyser    = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      src.connect(analyser);
+      _setMic('ok');
+    } catch(_) {
+      _setMic('err');
+    }
+  }
+
+  function _setMic(s) {
+    const dot = document.getElementById('mic-dot');
+    const txt = document.getElementById('mic-stat');
+    const btn = document.getElementById('ptt-btn');
+    const lbl = document.getElementById('ptt-lbl');
+    if (s === 'ok') {
+      dot.style.background = '#639922';
+      txt.textContent      = 'Mic: Siap';
+      btn.classList.remove('disabled');
+      lbl.textContent      = 'TAHAN UNTUK BICARA';
+      document.getElementById('mic-denied').classList.remove('show');
+    } else {
+      dot.style.background = '#E24B4A';
+      txt.textContent      = 'Mic: Ditolak';
+      lbl.textContent      = 'MIC TIDAK TERSEDIA';
+      document.getElementById('mic-denied').classList.add('show');
+    }
+  }
+
+  function _getMime() {
+    for (const t of ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4']) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+  }
+
+  // ── PTT ───────────────────────────────────────────
+  function startPTT(e) {
+    e.preventDefault();
+    if (!audioStream || isRecording || isReceiving || !currentCh) return;
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+
+    audioChunks   = [];
+    const mime    = _getMime();
+    try {
+      mediaRecorder = new MediaRecorder(audioStream, mime ? { mimeType: mime } : {});
+    } catch(_) {
+      mediaRecorder = new MediaRecorder(audioStream);
+    }
+
+    mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) audioChunks.push(ev.data); };
+
+    mediaRecorder.onstop = async () => {
+      if (!audioChunks.length || !currentCh) return;
+      const blob     = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      const duration = (Date.now() - recStart) / 1000;
+      const ab       = await blob.arrayBuffer();
+
+      wSocket.emit('walkie-audio', {
+        channel:  currentCh,
+        audio:    ab,
+        mimeType: mediaRecorder.mimeType || 'audio/webm',
+        name:     currentUser.name,
+        role:     currentUser.role,
+        duration: Math.round(duration * 10) / 10
+      });
+      wSocket.emit('walkie-unkey', { channel: currentCh });
+
+      // Add own transmission to feed
+      _addFeed({ from: currentUser.name, role: currentUser.role, duration, ts: Date.now(), blob, isSelf: true });
+    };
+
+    mediaRecorder.start(100);
+    isRecording = true;
+    recStart    = Date.now();
+
+    document.getElementById('ptt-btn').classList.add('recording');
+    document.getElementById('ptt-lbl').textContent = 'BICARA…';
+    document.getElementById('ptt-viz').style.display = '';
+    document.getElementById('rec-timer').style.display = '';
+
+    wSocket.emit('walkie-keying', { channel: currentCh, name: currentUser.name, role: currentUser.role });
+    _startViz();
+    _startTimer();
+
+    // Auto-stop at max duration
+    maxDurTimer = setTimeout(() => {
+      document.getElementById('max-warn').style.display = '';
+      setTimeout(stopPTT, 3000);
+    }, (MAX_REC_S - 3) * 1000);
+  }
+
+  function stopPTT(e) {
+    if (!isRecording || !mediaRecorder) return;
+    e?.preventDefault?.();
+    clearTimeout(maxDurTimer);
+    document.getElementById('max-warn').style.display = 'none';
+    mediaRecorder.stop();
+    isRecording = false;
+
+    const btn = document.getElementById('ptt-btn');
+    btn.classList.remove('recording');
+    document.getElementById('ptt-lbl').textContent  = 'TAHAN UNTUK BICARA';
+    document.getElementById('ptt-viz').style.display  = 'none';
+    document.getElementById('rec-timer').style.display = 'none';
+    _stopViz();
+    _stopTimer();
+  }
+
+  // ── Timer ─────────────────────────────────────────
+  function _startTimer() {
+    const el = document.getElementById('rec-timer');
+    recTimerInt = setInterval(() => {
+      const s = Math.floor((Date.now() - recStart) / 1000);
+      el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }, 200);
+  }
+  function _stopTimer() {
+    clearInterval(recTimerInt);
+    document.getElementById('rec-timer').textContent = '0:00';
+  }
+
+  // ── Visualizer ────────────────────────────────────
+  function _startViz() {
+    const canvas = document.getElementById('viz-canvas');
+    const ctx2   = canvas.getContext('2d');
+    const data   = new Uint8Array(analyser.frequencyBinCount);
+
+    function draw() {
+      if (!isRecording) return;
+      vizRaf = requestAnimationFrame(draw);
+
+      const W = canvas.offsetWidth  * (devicePixelRatio || 1);
+      const H = canvas.offsetHeight * (devicePixelRatio || 1);
+      if (canvas.width !== W) canvas.width  = W;
+      if (canvas.height !== H) canvas.height = H;
+
+      analyser.getByteFrequencyData(data);
+      ctx2.clearRect(0, 0, W, H);
+
+      const bw = 4 * (devicePixelRatio || 1);
+      const gp = 3 * (devicePixelRatio || 1);
+      const n  = Math.floor(W / (bw + gp));
+
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(i * data.length / n);
+        const v   = data[idx] / 255;
+        const h   = Math.max(v * H, 2 * (devicePixelRatio || 1));
+        const x   = i * (bw + gp);
+        const y   = (H - h) / 2;
+        ctx2.fillStyle = `rgba(226,75,74,${0.45 + v * 0.55})`;
+        ctx2.fillRect(x, y, bw, h);
+      }
+    }
+    draw();
+  }
+  function _stopViz() { cancelAnimationFrame(vizRaf); }
+
+  // ── Incoming ──────────────────────────────────────
+  function onIncoming(from, role) {
+    isReceiving = true;
+    document.getElementById('inc-name').textContent = from + (role ? '  [' + role + ']' : '');
+    document.getElementById('wt-incoming').classList.add('show');
+    const btn = document.getElementById('ptt-btn');
+    btn.classList.add('receiving');
+    document.getElementById('ptt-lbl').textContent = 'CHANNEL AKTIF';
+  }
+
+  function offIncoming() {
+    isReceiving = false;
+    document.getElementById('wt-incoming').classList.remove('show');
+    const btn = document.getElementById('ptt-btn');
+    if (!isRecording) {
+      btn.classList.remove('receiving');
+      document.getElementById('ptt-lbl').textContent = 'TAHAN UNTUK BICARA';
+    }
+  }
+
+  // ── Receive audio ─────────────────────────────────
+  function onReceive({ from, role, audio, mimeType, duration, ts }) {
+    offIncoming();
+    const mime = mimeType || 'audio/webm';
+    const blob = new Blob([audio], { type: mime });
+    _addFeed({ from, role, duration, ts, blob, isSelf: false });
+    // Auto-play received transmission
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    const url = URL.createObjectURL(blob);
+    const aud = new Audio(url);
+    aud.onended = () => { URL.revokeObjectURL(url); currentAudio = null; };
+    aud.play().catch(() => {});
+    currentAudio = aud;
+  }
+
+  // ── Feed rendering ────────────────────────────────
+  function _addFeed(item) {
+    feedItems.unshift(item);
+    if (feedItems.length > 60) feedItems.pop();
+    _renderFeed();
+    // Scroll to top (newest)
+    document.getElementById('wt-feed').scrollTop = 0;
+  }
+
+  function _renderFeed() {
+    const feed  = document.getElementById('wt-feed');
+    const empty = document.getElementById('feed-empty');
+    document.querySelectorAll('.feed-item').forEach(el => el.remove());
+
+    if (!feedItems.length) { empty.style.display = 'flex'; return; }
+    empty.style.display = 'none';
+
+    feedItems.forEach((item, idx) => {
+      const color    = RC[item.role] || '#639922';
+      const bg       = RB[item.role] || '#173404';
+      const initials = (item.from || '?').slice(0, 2).toUpperCase();
+      const dur      = _fmtDur(item.duration);
+      const ago      = _ago(item.ts);
+
+      // Pseudo-random bar heights seeded from timestamp
+      const seed = item.ts % 1000;
+      const bars = Array.from({ length: 14 }, (_, i) => {
+        const h = 3 + Math.abs(Math.sin(i * 1.7 + seed * 0.01)) * 17;
+        return `<div class="fi-bar" style="height:${h.toFixed(0)}px;"></div>`;
+      }).join('');
+
+      const el = document.createElement('div');
+      el.className = 'feed-item' + (item.isSelf ? ' self' : '');
+      el.dataset.idx = idx;
+      el.innerHTML = `
+        <div class="fi-avatar" style="background:${bg};color:${color};border-color:${color};">${initials}</div>
+        <div class="fi-meta">
+          <div class="fi-name">${item.from}${item.isSelf ? ' <span style="font-size:8px;color:var(--signal);">(kamu)</span>' : ''}</div>
+          <div class="fi-sub">${ago}${item.role ? ' · ' + item.role : ''}</div>
+        </div>
+        <div class="fi-bars">${bars}</div>
+        <span class="fi-dur">${dur}</span>
+        <i class="ti ti-player-play fi-play" id="play-${idx}"></i>
+      `;
+
+      el.addEventListener('click', () => {
+        if (!item.blob) return;
+        document.querySelectorAll('.feed-item.playing').forEach(e => e.classList.remove('playing'));
+        el.classList.add('playing');
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        const url = URL.createObjectURL(item.blob);
+        const aud = new Audio(url);
+        aud.onended = () => { el.classList.remove('playing'); URL.revokeObjectURL(url); };
+        aud.play().catch(() => {});
+        currentAudio = aud;
+      });
+
+      feed.appendChild(el);
+    });
+  }
+
+  function _fmtDur(s) {
+    if (!s && s !== 0) return '—';
+    if (s < 60) return s.toFixed(1) + 's';
+    return Math.floor(s / 60) + 'm' + Math.round(s % 60) + 's';
+  }
+
+  function _ago(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 5)    return 'baru saja';
+    if (s < 60)   return s + ' dtk lalu';
+    if (s < 3600) return Math.floor(s / 60) + ' mnt lalu';
+    return Math.floor(s / 3600) + ' jam lalu';
+  }
+
+  // Refresh time-ago labels every 30s
+  setInterval(() => {
+    document.querySelectorAll('.feed-item').forEach((el, i) => {
+      const item = feedItems[i];
+      if (!item) return;
+      const sub = el.querySelector('.fi-sub');
+      if (sub) sub.textContent = _ago(item.ts) + (item.role ? ' · ' + item.role : '');
+    });
+  }, 30000);
+
+  init();
+  </script>
+</body>
+</html>

@@ -164,6 +164,39 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ── Walkie Talkie ─────────────────────────────────────────
+  socket.on('walkie-join', ({ channel }) => {
+    // Keluar dari walkie room sebelumnya
+    for (const room of [...socket.rooms]) {
+      if (room.startsWith('walkie:')) socket.leave(room);
+    }
+    const room = `walkie:${channel}`;
+    socket.join(room);
+    socket.walkieChannel = channel;
+    // Kirim jumlah member ke semua di room (dengan sedikit delay agar join selesai)
+    setTimeout(() => {
+      const count = io.sockets.adapter.rooms.get(room)?.size || 0;
+      io.to(room).emit('walkie-members', { channel, count });
+    }, 120);
+  });
+
+  socket.on('walkie-keying', ({ channel, name, role }) => {
+    socket.to(`walkie:${channel}`).emit('walkie-keying', { from: name, role });
+  });
+
+  socket.on('walkie-unkey', ({ channel }) => {
+    socket.to(`walkie:${channel}`).emit('walkie-unkey');
+  });
+
+  socket.on('walkie-audio', ({ channel, audio, mimeType, name, role, duration }) => {
+    socket.to(`walkie:${channel}`).emit('walkie-receive', {
+      from: name, role,
+      audio,
+      mimeType: mimeType || 'audio/webm',
+      duration, ts: Date.now()
+    });
+  });
+
   // ── Disconnect ────────────────────────────────────────────
   socket.on('disconnect', () => {
     const data = onlineUsers[socket.id];
@@ -175,6 +208,15 @@ io.on('connection', (socket) => {
       delete userSockets[socket.operatorId];
       // Beritahu semua viewer grid bahwa operator ini offline
       io.emit('operator-offline', { id: socket.operatorId });
+    }
+    // Walkie cleanup: clear stuck incoming indicator + update member count
+    if (socket.walkieChannel) {
+      const room = `walkie:${socket.walkieChannel}`;
+      socket.to(room).emit('walkie-unkey');
+      setTimeout(() => {
+        const count = io.sockets.adapter.rooms.get(room)?.size || 0;
+        io.to(room).emit('walkie-members', { channel: socket.walkieChannel, count });
+      }, 200);
     }
   });
 });

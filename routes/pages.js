@@ -42,6 +42,7 @@ router.get('/operators', (req, res) => sendView(res, 'operators.html'));
 router.get('/dm',        (req, res) => sendView(res, 'dm.html'));
 router.get('/dm/:userId',(req, res) => sendView(res, 'dm.html'));
 router.get('/logs',      (req, res) => sendView(res, 'logs.html'));
+router.get('/walkie',    (req, res) => sendView(res, 'walkie.html'));
 
 // ── API: me ───────────────────────────────────────────────────
 router.get('/api/me', (req, res) => res.json(req.session.user));
